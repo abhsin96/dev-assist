@@ -21,6 +21,8 @@ class ErrorCode(StrEnum):
     RATE_LIMIT_ERROR = "RATE_LIMIT_ERROR"
     MCP_ERROR = "MCP_ERROR"
     MCP_TOOL_TIMEOUT = "MCP_TOOL_TIMEOUT"
+    TOOL_NOT_ALLOWED = "TOOL_NOT_ALLOWED"
+    APPROVAL_REQUIRED = "APPROVAL_REQUIRED"
     AGENT_ERROR = "AGENT_ERROR"
     UPSTREAM_ERROR = "UPSTREAM_ERROR"
 
@@ -85,6 +87,20 @@ class MCPError(DevHubError):
 class MCPToolTimeoutError(MCPError):
     code = ErrorCode.MCP_TOOL_TIMEOUT
     user_message = "Tool call timed out"
+
+
+class ToolNotAllowedError(MCPError):
+    code = ErrorCode.TOOL_NOT_ALLOWED
+    http_status = 403
+    user_message = "Agent is not permitted to use this tool"
+    retriable = False
+
+
+class ApprovalRequiredError(MCPError):
+    code = ErrorCode.APPROVAL_REQUIRED
+    http_status = 403
+    user_message = "This tool requires human approval before execution"
+    retriable = False
 
 
 class AgentError(DevHubError):

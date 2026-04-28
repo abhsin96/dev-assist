@@ -10,8 +10,17 @@ import uuid
 from typing import Protocol, runtime_checkable
 
 from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.tools import BaseTool
 
-from devhub.domain.models import Run, Thread, User
+from devhub.domain.models import (
+    MCPServerConfig,
+    MCPServerInfo,
+    Run,
+    Thread,
+    ToolCall,
+    ToolResult,
+    User,
+)
 
 
 @runtime_checkable
@@ -39,6 +48,16 @@ class IRunRepository(Protocol):
 
 @runtime_checkable
 class IMCPRegistry(Protocol):
+    async def connect(self, config: MCPServerConfig) -> None: ...
+
+    async def disconnect(self, server_id: str) -> None: ...
+
+    async def list_servers(self) -> list[MCPServerInfo]: ...
+
+    async def tools_for(self, agent_id: str) -> list[BaseTool]: ...
+
+    async def call(self, tool_call: ToolCall) -> ToolResult: ...
+
     async def is_healthy(self) -> bool: ...
 
 

@@ -40,3 +40,41 @@ class Run(BaseModel):
     started_at: datetime
     finished_at: datetime | None = None
     error_data: dict[str, Any] | None = None
+
+
+# ── MCP value objects ─────────────────────────────────────────────────────────
+
+
+class MCPServerConfig(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    server_id: str
+    url: str
+    transport: Literal["streamable-http"] = "streamable-http"
+
+
+class MCPServerInfo(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    server_id: str
+    url: str
+    connected: bool
+    tool_count: int
+
+
+class ToolCall(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    tool_name: str
+    args: dict[str, Any]
+    agent_id: str
+    approval_id: str | None = None
+
+
+class ToolResult(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    tool_name: str
+    ok: bool
+    data: Any = None
+    error: str | None = None
