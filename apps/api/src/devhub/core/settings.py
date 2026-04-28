@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     langchain_api_key: str = Field(default="")
     langchain_project: str = "devhub-ai"
 
+    # Sentry
+    sentry_dsn: str = Field(default="")
+    git_sha: str = Field(default="unknown")
+
+    # OpenTelemetry (optional; set to enable OTLP export)
+    otel_exporter_otlp_endpoint: str = Field(default="")
+
 
 @lru_cache
 def get_settings() -> Settings:
