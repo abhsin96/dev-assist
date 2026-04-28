@@ -19,3 +19,13 @@ GRANT ALL PRIVILEGES ON DATABASE devhub TO devhub_app;
 GRANT ALL ON SCHEMA public TO devhub_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO devhub_app;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO devhub_app;
+
+-- Users table (DEVHUB-005: auth scaffold)
+CREATE TABLE IF NOT EXISTS users (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email       TEXT UNIQUE NOT NULL,
+    name        TEXT,
+    avatar_url  TEXT,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

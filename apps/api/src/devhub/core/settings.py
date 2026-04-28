@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     langchain_api_key: str = Field(default="")
     langchain_project: str = "devhub-ai"
 
+    # Auth
+    api_jwt_secret: str = Field(default="change_me_jwt_secret")
+
     # Sentry
     sentry_dsn: str = Field(default="")
     git_sha: str = Field(default="unknown")

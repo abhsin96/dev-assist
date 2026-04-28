@@ -54,9 +54,13 @@ if settings.sentry_dsn:
     logger.info("sentry.initialized", release=settings.git_sha)
 
 # ── 5. FastAPI app ────────────────────────────────────────────────────────────
-from fastapi import FastAPI  # noqa: E402
+from fastapi import FastAPI, Request  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
 
 from devhub.api.middleware import RequestIdMiddleware  # noqa: E402
+from devhub.api.routers.auth import router as auth_router  # noqa: E402
+from devhub.core.errors import AuthError, DevHubError  # noqa: E402
+from devhub.core.logging import get_trace_id  # noqa: E402
 
 app = FastAPI(
     title="DevHub AI API",
@@ -65,6 +69,39 @@ app = FastAPI(
 )
 
 app.add_middleware(RequestIdMiddleware)
+
+
+@app.exception_handler(AuthError)
+async def auth_error_handler(request: Request, exc: AuthError) -> JSONResponse:
+    return JSONResponse(
+        status_code=exc.http_status,
+        content={
+            "type": "about:blank",
+            "title": "Unauthorized",
+            "detail": exc.user_message,
+            "status": exc.http_status,
+            "traceId": get_trace_id(),
+        },
+        media_type="application/problem+json",
+    )
+
+
+@app.exception_handler(DevHubError)
+async def devhub_error_handler(request: Request, exc: DevHubError) -> JSONResponse:
+    return JSONResponse(
+        status_code=exc.http_status,
+        content={
+            "type": "about:blank",
+            "title": exc.code,
+            "detail": exc.user_message,
+            "status": exc.http_status,
+            "traceId": get_trace_id(),
+        },
+        media_type="application/problem+json",
+    )
+
+
+app.include_router(auth_router)
 
 logger.info(
     "app.started",
