@@ -54,18 +54,38 @@ if settings.sentry_dsn:
     logger.info("sentry.initialized", release=settings.git_sha)
 
 # ── 5. FastAPI app ────────────────────────────────────────────────────────────
-from fastapi import FastAPI  # noqa: E402
+from collections.abc import AsyncIterator  # noqa: E402
+from contextlib import asynccontextmanager  # noqa: E402
 
+from fastapi import FastAPI  # noqa: E402
+from langgraph.checkpoint.memory import MemorySaver  # noqa: E402
+
+from devhub.adapters.llm.client import AnthropicLLMClient  # noqa: E402
+from devhub.adapters.streaming.event_store import EventStore  # noqa: E402
 from devhub.api.error_handlers import register_error_handlers  # noqa: E402
 from devhub.api.middleware import RequestIdMiddleware  # noqa: E402
 from devhub.api.routers.auth import router as auth_router  # noqa: E402
 from devhub.api.routers.health import router as health_router  # noqa: E402
+from devhub.api.routers.runs import router as runs_router  # noqa: E402
 from devhub.api.routers.threads import router as threads_router  # noqa: E402
+from devhub.domain.graphs.supervisor import compile_supervisor_graph  # noqa: E402
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    llm = AnthropicLLMClient(api_key=settings.anthropic_api_key)
+    app.state.graph = compile_supervisor_graph(llm, MemorySaver())
+    app.state.event_store = EventStore()
+    logger.info("app.graph_ready")
+    yield
+    logger.info("app.shutting_down")
+
 
 app = FastAPI(
     title="DevHub AI API",
     version="0.1.0",
     openapi_url="/openapi.json" if settings.app_env != "prod" else None,
+    lifespan=lifespan,
 )
 
 app.add_middleware(RequestIdMiddleware)
@@ -74,6 +94,7 @@ register_error_handlers(app)
 app.include_router(auth_router)
 app.include_router(health_router)
 app.include_router(threads_router)
+app.include_router(runs_router)
 
 logger.info(
     "app.started",
