@@ -78,6 +78,9 @@ jobs:
       - name: Mypy
         run: uv run mypy src
 
+      - name: Import linter
+        run: uv run lint-imports
+
       - name: Pytest
         run: uv run pytest --tb=short
 

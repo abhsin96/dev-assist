@@ -59,13 +59,15 @@ from fastapi.responses import JSONResponse  # noqa: E402
 
 from devhub.api.middleware import RequestIdMiddleware  # noqa: E402
 from devhub.api.routers.auth import router as auth_router  # noqa: E402
+from devhub.api.routers.health import router as health_router  # noqa: E402
+from devhub.api.routers.threads import router as threads_router  # noqa: E402
 from devhub.core.errors import AuthError, DevHubError  # noqa: E402
 from devhub.core.logging import get_trace_id  # noqa: E402
 
 app = FastAPI(
     title="DevHub AI API",
     version="0.1.0",
-    openapi_url="/openapi.json" if settings.app_env == "development" else None,
+    openapi_url="/openapi.json" if settings.app_env != "prod" else None,
 )
 
 app.add_middleware(RequestIdMiddleware)
@@ -102,6 +104,8 @@ async def devhub_error_handler(request: Request, exc: DevHubError) -> JSONRespon
 
 
 app.include_router(auth_router)
+app.include_router(health_router)
+app.include_router(threads_router)
 
 logger.info(
     "app.started",
@@ -109,8 +113,3 @@ logger.info(
     langsmith_tracing=settings.langchain_tracing_v2,
     sentry_enabled=bool(settings.sentry_dsn),
 )
-
-
-@app.get("/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok"}
