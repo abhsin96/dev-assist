@@ -29,3 +29,24 @@ CREATE TABLE IF NOT EXISTS users (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Threads table (DEVHUB-006: hexagonal skeleton)
+CREATE TABLE IF NOT EXISTS threads (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title       TEXT NOT NULL DEFAULT 'New thread',
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS threads_user_id_idx ON threads(user_id);
+
+-- Runs table (DEVHUB-008: supervisor graph)
+CREATE TABLE IF NOT EXISTS runs (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    thread_id   UUID NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+    status      TEXT NOT NULL DEFAULT 'running',
+    started_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    finished_at TIMESTAMPTZ,
+    error_data  JSONB
+);
+CREATE INDEX IF NOT EXISTS runs_thread_id_idx ON runs(thread_id);

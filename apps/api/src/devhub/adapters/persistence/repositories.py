@@ -6,9 +6,10 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from devhub.adapters.persistence.models import Run as OrmRun
 from devhub.adapters.persistence.models import Thread as OrmThread
 from devhub.adapters.persistence.models import User as OrmUser
-from devhub.domain.models import Thread, User
+from devhub.domain.models import Run, Thread, User
 
 
 class UserRepository:
@@ -69,4 +70,56 @@ def _thread_to_domain(orm: OrmThread) -> Thread:
         title=orm.title,
         created_at=orm.created_at,
         updated_at=orm.updated_at,
+    )
+
+
+class RunRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def create(self, thread_id: uuid.UUID) -> Run:
+        orm = OrmRun(thread_id=thread_id, status="running")
+        self._session.add(orm)
+        await self._session.commit()
+        await self._session.refresh(orm)
+        return _run_to_domain(orm)
+
+    async def get(self, run_id: uuid.UUID) -> Run | None:
+        result = await self._session.execute(select(OrmRun).where(OrmRun.id == run_id))
+        orm = result.scalar_one_or_none()
+        return _run_to_domain(orm) if orm else None
+
+    async def mark_completed(self, run_id: uuid.UUID) -> None:
+        from datetime import UTC, datetime
+
+        from sqlalchemy import update
+
+        await self._session.execute(
+            update(OrmRun)
+            .where(OrmRun.id == run_id)
+            .values(status="completed", finished_at=datetime.now(UTC))
+        )
+        await self._session.commit()
+
+    async def mark_failed(self, run_id: uuid.UUID, error_data: dict[str, object]) -> None:
+        from datetime import UTC, datetime
+
+        from sqlalchemy import update
+
+        await self._session.execute(
+            update(OrmRun)
+            .where(OrmRun.id == run_id)
+            .values(status="failed", finished_at=datetime.now(UTC), error_data=error_data)
+        )
+        await self._session.commit()
+
+
+def _run_to_domain(orm: OrmRun) -> Run:
+    return Run(
+        id=orm.id,
+        thread_id=orm.thread_id,
+        status=orm.status,  # type: ignore[arg-type]
+        started_at=orm.started_at,
+        finished_at=orm.finished_at,
+        error_data=orm.error_data,
     )
