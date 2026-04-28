@@ -1,0 +1,18 @@
+{
+  "name": "devhub-ai",
+  "private": true,
+  "packageManager": "pnpm@10.30.0+sha512.2b5753de015d480eeb88f5b5b61e0051f05b4301808a82ec8b840c9d2adf7748eb352c83f5c1593ca703ff1017295bc3fdd3119abb9686efc96b9fcb18200937",
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "gen:types": "turbo run gen:types"
+  },
+  "devDependencies": {
+    "lefthook": "^1.11.13",
+    "lint-staged": "^15.5.2",
+    "turbo": "^2.5.3"
+  }
+}

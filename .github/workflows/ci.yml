@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "24"
+  PYTHON_VERSION: "3.12"
+  UV_VERSION: "0.11.8"
+
+jobs:
+  # ─── Web: lint + typecheck + unit tests ─────────────────────────────────────
+  web-quality:
+    name: Web — lint / typecheck / test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10.30.0"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Restore Turbo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-web-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-web-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm --filter web lint
+
+      - name: Typecheck
+        run: pnpm --filter web typecheck
+
+  # ─── API: ruff + mypy + pytest ───────────────────────────────────────────────
+  api-quality:
+    name: API — ruff / mypy / pytest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Ruff lint
+        run: uv run ruff check src tests
+
+      - name: Ruff format check
+        run: uv run ruff format --check src tests
+
+      - name: Mypy
+        run: uv run mypy src
+
+      - name: Pytest
+        run: uv run pytest --tb=short
+
+  # ─── Build matrix ────────────────────────────────────────────────────────────
+  build:
+    name: Build — ${{ matrix.app }}
+    runs-on: ubuntu-latest
+    needs: [web-quality, api-quality]
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [web, api]
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Web build ──
+      - uses: pnpm/action-setup@v4
+        if: matrix.app == 'web'
+        with:
+          version: "10.30.0"
+
+      - uses: actions/setup-node@v4
+        if: matrix.app == 'web'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Restore Turbo cache
+        if: matrix.app == 'web'
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-build-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-build-${{ runner.os }}-
+
+      - name: Install JS deps
+        if: matrix.app == 'web'
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web
+        if: matrix.app == 'web'
+        run: pnpm --filter web build
+        env:
+          # Required for Next.js build even if unused at build time
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+
+      # ── API build (wheel) ──
+      - uses: astral-sh/setup-uv@v5
+        if: matrix.app == 'api'
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+
+      - name: Set up Python
+        if: matrix.app == 'api'
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Build API wheel
+        if: matrix.app == 'api'
+        working-directory: apps/api
+        run: uv build --wheel

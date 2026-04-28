@@ -1,0 +1,13 @@
+pre-commit:
+  parallel: true
+  commands:
+    lint-staged:
+      run: pnpm exec lint-staged
+    python-ruff:
+      glob: "apps/api/**/*.py"
+      run: uv run ruff check {staged_files} && uv run ruff format --check {staged_files}
+      root: "apps/api"
+    python-mypy:
+      glob: "apps/api/src/**/*.py"
+      run: uv run mypy src
+      root: "apps/api"

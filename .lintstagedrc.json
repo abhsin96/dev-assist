@@ -1,0 +1,3 @@
+{
+  "apps/web/**/*.{ts,tsx,js,mjs}": ["pnpm --filter web exec eslint --fix"]
+}
