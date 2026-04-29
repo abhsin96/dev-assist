@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@/auth';
+import { mintApiToken } from '@/lib/mint-api-token';
 
 /**
  * SSE endpoint for streaming run events
@@ -23,8 +24,7 @@ export async function GET(request: NextRequest) {
       return new Response('Missing run_id parameter', { status: 400 });
     }
 
-    // Get access token from session
-    const accessToken = (session as { accessToken?: string }).accessToken || '';
+    const apiToken = await mintApiToken(session);
 
     // Build backend URL
     const backendUrl = new URL(
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     const response = await fetch(backendUrl.toString(), {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
+        'Authorization': `Bearer ${apiToken}`,
         'Accept': 'text/event-stream',
       },
       // @ts-expect-error - Next.js supports duplex for streaming

@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { mintApiToken } from "@/lib/mint-api-token";
 import { NextResponse } from "next/server";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -10,14 +11,15 @@ export async function GET(
   const params = await context.params;
   const session = await auth();
 
-  if (!session?.accessToken) {
+  if (!session?.user?.email) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
+    const token = await mintApiToken(session);
     const response = await fetch(`${API_BASE_URL}/threads/${params.id}`, {
       headers: {
-        Authorization: `Bearer ${session.accessToken}`,
+        Authorization: `Bearer ${token}`,
       },
     });
 
@@ -49,17 +51,18 @@ export async function PATCH(
   const params = await context.params;
   const session = await auth();
 
-  if (!session?.accessToken) {
+  if (!session?.user?.email) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const body = await request.json();
+    const token = await mintApiToken(session);
     const response = await fetch(`${API_BASE_URL}/threads/${params.id}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${session.accessToken}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(body),
     });
@@ -92,15 +95,16 @@ export async function DELETE(
   const params = await context.params;
   const session = await auth();
 
-  if (!session?.accessToken) {
+  if (!session?.user?.email) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
+    const token = await mintApiToken(session);
     const response = await fetch(`${API_BASE_URL}/threads/${params.id}`, {
       method: "DELETE",
       headers: {
-        Authorization: `Bearer ${session.accessToken}`,
+        Authorization: `Bearer ${token}`,
       },
     });
 

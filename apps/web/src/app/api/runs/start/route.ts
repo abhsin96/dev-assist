@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
+import { mintApiToken } from '@/lib/mint-api-token';
 
 /**
  * API endpoint for starting a new run
@@ -23,9 +24,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get access token from session (assuming it's stored in the session)
-    // For now, we'll use a placeholder - this needs to be configured based on your auth setup
-    const accessToken = (session as { accessToken?: string }).accessToken || '';
+    const apiToken = await mintApiToken(session);
 
     // Call backend API
     const backendUrl = new URL(
@@ -36,7 +35,7 @@ export async function POST(request: NextRequest) {
     const response = await fetch(backendUrl.toString(), {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
+        'Authorization': `Bearer ${apiToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ thread_id, message }),

@@ -76,6 +76,7 @@ class MCPRegistry:
                     server_id=server_id,
                     url=config.url,
                     connected=server_id in self._sessions,
+                    enabled=config.enabled,
                     tool_count=tool_count,
                 )
             )
@@ -101,6 +102,12 @@ class MCPRegistry:
                     )
                 )
         return tools
+
+    async def get_tools_for_server(self, server_id: str) -> list[MCPTool]:
+        """Get all tools exposed by a specific server."""
+        if server_id not in self._sessions:
+            return []
+        return await self._get_tools_cached(server_id)
 
     # ── Tool execution ────────────────────────────────────────────────────────
 

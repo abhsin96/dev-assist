@@ -1,4 +1,5 @@
 import { auth } from "@/auth";
+import { mintApiToken } from "@/lib/mint-api-token";
 import { NextResponse } from "next/server";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -6,14 +7,15 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 export async function GET() {
   const session = await auth();
 
-  if (!session?.accessToken) {
+  if (!session?.user?.email) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
+    const token = await mintApiToken(session);
     const response = await fetch(`${API_BASE_URL}/threads`, {
       headers: {
-        Authorization: `Bearer ${session.accessToken}`,
+        Authorization: `Bearer ${token}`,
       },
     });
 
@@ -35,17 +37,18 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await auth();
 
-  if (!session?.accessToken) {
+  if (!session?.user?.email) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const body = await request.json();
+    const token = await mintApiToken(session);
     const response = await fetch(`${API_BASE_URL}/threads`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${session.accessToken}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(body),
     });

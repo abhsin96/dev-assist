@@ -79,3 +79,20 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 CREATE INDEX IF NOT EXISTS audit_log_user_id_idx ON audit_log(user_id);
 CREATE INDEX IF NOT EXISTS audit_log_approval_id_idx ON audit_log(approval_id);
+
+-- MCP servers table (DEVHUB-024: MCP connections UI)
+CREATE TABLE IF NOT EXISTS mcp_servers (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    server_id   TEXT UNIQUE NOT NULL,
+    url         TEXT NOT NULL,
+    transport   TEXT NOT NULL DEFAULT 'streamable-http',
+    enabled     BOOLEAN NOT NULL DEFAULT true,
+    config      JSONB,
+    error_code  TEXT,
+    error_message TEXT,
+    last_connected_at TIMESTAMPTZ,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS mcp_servers_enabled_idx ON mcp_servers(enabled);
+CREATE INDEX IF NOT EXISTS mcp_servers_server_id_idx ON mcp_servers(server_id);

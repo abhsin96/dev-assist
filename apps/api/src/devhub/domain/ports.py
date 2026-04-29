@@ -15,7 +15,9 @@ from langchain_core.tools import BaseTool
 from devhub.domain.models import (
     CodeSearchHit,
     MCPServerConfig,
+    MCPServerCreate,
     MCPServerInfo,
+    MCPServerUpdate,
     Run,
     Thread,
     ToolCall,
@@ -123,3 +125,26 @@ class IVectorStore(Protocol):
     """Vector similarity search over embedded code chunks."""
 
     async def search(self, query: str, *, k: int = 10) -> list[CodeSearchHit]: ...
+
+
+@runtime_checkable
+class IMCPServerRepository(Protocol):
+    """Repository for persisting MCP server configurations."""
+
+    async def list_all(self) -> list[MCPServerInfo]: ...
+
+    async def get(self, server_id: str) -> MCPServerInfo | None: ...
+
+    async def create(self, server: MCPServerCreate) -> MCPServerInfo: ...
+
+    async def update(self, server_id: str, updates: MCPServerUpdate) -> MCPServerInfo | None: ...
+
+    async def delete(self, server_id: str) -> None: ...
+
+    async def update_connection_status(
+        self,
+        server_id: str,
+        connected: bool,
+        error_code: str | None = None,
+        error_message: str | None = None,
+    ) -> None: ...

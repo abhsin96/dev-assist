@@ -51,6 +51,8 @@ class MCPServerConfig(BaseModel):
     server_id: str
     url: str
     transport: Literal["streamable-http"] = "streamable-http"
+    enabled: bool = True
+    config: dict[str, Any] | None = None
 
 
 class MCPServerInfo(BaseModel):
@@ -59,7 +61,25 @@ class MCPServerInfo(BaseModel):
     server_id: str
     url: str
     connected: bool
+    enabled: bool
     tool_count: int
+    tools: list[str] = []
+    error_code: str | None = None
+    error_message: str | None = None
+    last_connected_at: datetime | None = None
+
+
+class MCPServerCreate(BaseModel):
+    server_id: str
+    url: str
+    transport: Literal["streamable-http"] = "streamable-http"
+    config: dict[str, Any] | None = None
+
+
+class MCPServerUpdate(BaseModel):
+    url: str | None = None
+    enabled: bool | None = None
+    config: dict[str, Any] | None = None
 
 
 class ToolCall(BaseModel):

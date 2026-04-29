@@ -67,6 +67,7 @@ from devhub.api.error_handlers import register_error_handlers  # noqa: E402
 from devhub.api.middleware import RequestIdMiddleware  # noqa: E402
 from devhub.api.routers.auth import router as auth_router  # noqa: E402
 from devhub.api.routers.health import router as health_router  # noqa: E402
+from devhub.api.routers.mcp_connections import router as mcp_router  # noqa: E402
 from devhub.api.routers.runs import router as runs_router  # noqa: E402
 from devhub.api.routers.threads import router as threads_router  # noqa: E402
 from devhub.domain.graphs.supervisor import compile_supervisor_graph  # noqa: E402
@@ -74,13 +75,54 @@ from devhub.domain.graphs.supervisor import compile_supervisor_graph  # noqa: E4
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    from devhub.adapters.mcp.registry import MCPRegistry
     from devhub.adapters.persistence.database import get_session_factory
     from devhub.adapters.persistence.repositories import HITLApprovalRepository
+    from devhub.adapters.persistence.repositories.mcp_server_repository import (
+        MCPServerRepository,
+    )
     from devhub.application.use_cases.expire_approvals import ExpireApprovalsTask
+    from devhub.domain.models import MCPServerConfig
 
     llm = AnthropicLLMClient(api_key=settings.anthropic_api_key)
     app.state.graph = compile_supervisor_graph(llm, MemorySaver())
     app.state.event_store = EventStore()
+
+    # Initialize MCP registry
+    mcp_registry = MCPRegistry()
+    app.state.mcp_registry = mcp_registry
+
+    # Load and connect to enabled MCP servers from database
+    session = get_session_factory()()
+    mcp_repo = MCPServerRepository(session)
+    servers = await mcp_repo.list_all()
+    for server in servers:
+        if server.enabled:
+            try:
+                config = MCPServerConfig(
+                    server_id=server.server_id,
+                    url=server.url,
+                    transport="streamable-http",
+                    enabled=True,
+                )
+                await mcp_registry.connect(config)
+                await mcp_repo.update_connection_status(server.server_id, connected=True)
+                logger.info("mcp.server_connected_on_startup", server_id=server.server_id)
+            except Exception as exc:
+                logger.error(
+                    "mcp.server_connection_failed_on_startup",
+                    server_id=server.server_id,
+                    error=str(exc),
+                )
+                await mcp_repo.update_connection_status(
+                    server.server_id,
+                    connected=False,
+                    error_code="CONNECTION_FAILED",
+                    error_message=str(exc),
+                )
+    await session.commit()
+    await session.close()
+
     logger.info("app.graph_ready")
 
     # Create a session for the background task that will live for the app lifetime
@@ -95,6 +137,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("app.expire_approvals_task_started")
 
     yield
+
+    # Disconnect all MCP servers
+    if hasattr(app.state, "mcp_registry"):
+        await app.state.mcp_registry.disconnect_all()
+        logger.info("app.mcp_servers_disconnected")
 
     # Stop background task
     if hasattr(app.state, "expire_task"):
@@ -135,6 +182,7 @@ register_error_handlers(app)
 
 app.include_router(auth_router, prefix="/api")
 app.include_router(health_router, prefix="/api")
+app.include_router(mcp_router, prefix="/api")
 app.include_router(threads_router, prefix="/api")
 app.include_router(runs_router, prefix="/api")
 
