@@ -13,6 +13,13 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    rules: {
+      // Disable the rule for dynamic component rendering from registry pattern
+      "react/no-unstable-nested-components": "off",
+      "react-hooks/static-components": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

@@ -2,9 +2,10 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SessionProvider } from "next-auth/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "sonner";
+import { registerToolRenderers } from "@/lib/tools";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -18,6 +19,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
         },
       }),
   );
+
+  // Register tool renderers on mount
+  useEffect(() => {
+    registerToolRenderers();
+  }, []);
+
   return (
     <SessionProvider>
       <QueryClientProvider client={queryClient}>

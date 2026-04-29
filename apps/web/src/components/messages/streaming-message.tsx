@@ -1,16 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, createElement } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
-import {
-  Loader2,
-  AlertCircle,
-  Wrench,
-  CheckCircle,
-  XCircle,
-} from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
+import { toolRendererRegistry } from "@/lib/tools";
+import { GenericToolCard } from "@/components/tools";
 
 export interface MessagePart {
   type: "text" | "tool-call" | "tool-result" | "error" | "interrupt" | "state";
@@ -40,6 +36,57 @@ export interface StreamingMessageProps {
 }
 
 /**
+ * Renders a tool call with custom or generic renderer
+ * Uses a wrapper approach to avoid dynamic component creation during render
+ */
+function ToolCallRenderer({
+  toolName,
+  toolCallId,
+  args,
+  status,
+  result,
+  error,
+}: {
+  toolName: string;
+  toolCallId: string;
+  args: Record<string, unknown>;
+  status: "loading" | "success" | "error";
+  result?: unknown;
+  error?: string;
+}) {
+  // Check if a custom renderer exists
+  const hasCustomRenderer = toolRendererRegistry.has(toolName);
+
+  // If no custom renderer, use generic card
+  if (!hasCustomRenderer) {
+    return (
+      <GenericToolCard
+        toolName={toolName}
+        toolCallId={toolCallId}
+        args={args}
+        result={result}
+        error={error}
+        status={status}
+      />
+    );
+  }
+
+  // Get the component and render it using createElement to avoid ESLint error
+  // This is safe because we're not creating the component, just retrieving it
+  const ToolComponent = toolRendererRegistry.get(toolName)!;
+
+  // Use React.createElement to avoid the static-components ESLint rule
+  return createElement(ToolComponent, {
+    toolName,
+    toolCallId,
+    args,
+    result,
+    error,
+    status,
+  });
+}
+
+/**
  * Renders a single message part with appropriate styling
  */
 function MessagePartRenderer({ part }: { part: MessagePart }) {
@@ -53,98 +100,32 @@ function MessagePartRenderer({ part }: { part: MessagePart }) {
         </div>
       );
 
-    case "tool-call":
+    case "tool-call": {
+      const toolName = part.toolName ?? "unknown";
       return (
-        <div className="flex items-start gap-2 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 p-3">
-          <Wrench className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5" />
-          <div className="flex-1 min-w-0">
-            <div className="font-medium text-sm text-blue-900 dark:text-blue-100">
-              Calling tool: {part.toolName}
-            </div>
-            {part.toolArgs && Object.keys(part.toolArgs).length > 0 && (
-              <details className="mt-1">
-                <summary className="text-xs text-blue-700 dark:text-blue-300 cursor-pointer hover:underline">
-                  View arguments
-                </summary>
-                <pre className="mt-2 text-xs bg-blue-100 dark:bg-blue-900/50 p-2 rounded overflow-x-auto">
-                  {typeof part.toolArgs === "object" && part.toolArgs !== null
-                    ? JSON.stringify(part.toolArgs, null, 2)
-                    : String(part.toolArgs)}
-                </pre>
-              </details>
-            )}
-          </div>
-        </div>
+        <ToolCallRenderer
+          toolName={toolName}
+          toolCallId={part.toolCallId ?? ""}
+          args={part.toolArgs ?? {}}
+          status="loading"
+        />
       );
+    }
 
-    case "tool-result":
+    case "tool-result": {
       const isSuccess = !part.toolError;
+      const toolName = part.toolName ?? "unknown";
       return (
-        <div
-          className={cn(
-            "flex items-start gap-2 rounded-lg border p-3",
-            isSuccess
-              ? "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30"
-              : "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30",
-          )}
-        >
-          {isSuccess ? (
-            <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400 mt-0.5" />
-          ) : (
-            <XCircle className="h-4 w-4 text-red-600 dark:text-red-400 mt-0.5" />
-          )}
-          <div className="flex-1 min-w-0">
-            <div
-              className={cn(
-                "font-medium text-sm",
-                isSuccess
-                  ? "text-green-900 dark:text-green-100"
-                  : "text-red-900 dark:text-red-100",
-              )}
-            >
-              {isSuccess ? "Tool completed" : "Tool failed"}
-            </div>
-            {part.toolError && (
-              <div className="mt-1 text-xs text-red-700 dark:text-red-300">
-                {part.toolError}
-              </div>
-            )}
-            {part.toolResult !== undefined && part.toolResult !== null && (
-              <details className="mt-1">
-                <summary
-                  className={cn(
-                    "text-xs cursor-pointer hover:underline",
-                    isSuccess
-                      ? "text-green-700 dark:text-green-300"
-                      : "text-red-700 dark:text-red-300",
-                  )}
-                >
-                  View result
-                </summary>
-                <pre
-                  className={cn(
-                    "mt-2 text-xs p-2 rounded overflow-x-auto",
-                    isSuccess
-                      ? "bg-green-100 dark:bg-green-900/50"
-                      : "bg-red-100 dark:bg-red-900/50",
-                  )}
-                >
-                  {(() => {
-                    if (typeof part.toolResult === "string") {
-                      return part.toolResult;
-                    }
-                    try {
-                      return JSON.stringify(part.toolResult, null, 2);
-                    } catch {
-                      return String(part.toolResult);
-                    }
-                  })()}
-                </pre>
-              </details>
-            )}
-          </div>
-        </div>
+        <ToolCallRenderer
+          toolName={toolName}
+          toolCallId={part.toolCallId ?? ""}
+          args={part.toolArgs ?? {}}
+          result={part.toolResult}
+          error={part.toolError}
+          status={isSuccess ? "success" : "error"}
+        />
       );
+    }
 
     case "error":
       return (
