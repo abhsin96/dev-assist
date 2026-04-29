@@ -19,7 +19,11 @@ from devhub.adapters.persistence.repositories import (
     UserRepository,
 )
 from devhub.adapters.streaming.event_store import EventStore
+from devhub.application.use_cases.create_thread import CreateThreadUseCase
+from devhub.application.use_cases.delete_thread import DeleteThreadUseCase
+from devhub.application.use_cases.get_thread import GetThreadUseCase
 from devhub.application.use_cases.list_threads import ListThreadsUseCase
+from devhub.application.use_cases.update_thread import UpdateThreadUseCase
 from devhub.core.errors import AuthError
 from devhub.core.settings import get_settings
 from devhub.domain.ports import (
@@ -103,13 +107,40 @@ def get_list_threads_use_case(
     return ListThreadsUseCase(repo)
 
 
+def get_create_thread_use_case(
+    repo: Annotated[IThreadRepository, Depends(get_thread_repo)],
+) -> CreateThreadUseCase:
+    return CreateThreadUseCase(repo)
+
+
+def get_get_thread_use_case(
+    repo: Annotated[IThreadRepository, Depends(get_thread_repo)],
+) -> GetThreadUseCase:
+    return GetThreadUseCase(repo)
+
+
+def get_update_thread_use_case(
+    repo: Annotated[IThreadRepository, Depends(get_thread_repo)],
+) -> UpdateThreadUseCase:
+    return UpdateThreadUseCase(repo)
+
+
+def get_delete_thread_use_case(
+    repo: Annotated[IThreadRepository, Depends(get_thread_repo)],
+) -> DeleteThreadUseCase:
+    return DeleteThreadUseCase(repo)
+
+
 # ── Re-export redis for health checks ─────────────────────────────────────────
 __all__ = [
     "CurrentUser",
     "get_audit_log_repo",
+    "get_create_thread_use_case",
     "get_current_user",
     "get_db",
+    "get_delete_thread_use_case",
     "get_event_store",
+    "get_get_thread_use_case",
     "get_graph",
     "get_hitl_approval_repo",
     "get_llm_client",
@@ -118,5 +149,6 @@ __all__ = [
     "get_redis",
     "get_run_repo",
     "get_thread_repo",
+    "get_update_thread_use_case",
     "get_user_repo",
 ]

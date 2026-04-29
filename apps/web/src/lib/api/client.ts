@@ -13,12 +13,12 @@ export interface RequestOptions extends RequestInit {
    * Additional headers to include in the request
    */
   headers?: HeadersInit;
-  
+
   /**
    * Request timeout in milliseconds (default: 30000)
    */
   timeout?: number;
-  
+
   /**
    * Whether to include credentials (cookies) in the request
    */
@@ -31,7 +31,7 @@ export interface RequestOptions extends RequestInit {
  */
 export async function apiClient<T = unknown>(
   endpoint: string,
-  options: RequestOptions = {}
+  options: RequestOptions = {},
 ): Promise<T> {
   const { timeout = 30000, headers = {}, ...fetchOptions } = options;
 
@@ -39,7 +39,9 @@ export async function apiClient<T = unknown>(
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   try {
-    const url = endpoint.startsWith("http") ? endpoint : `${API_BASE_URL}${endpoint}`;
+    const url = endpoint.startsWith("http")
+      ? endpoint
+      : `${API_BASE_URL}${endpoint}`;
 
     const response = await fetch(url, {
       ...fetchOptions,
@@ -97,7 +99,8 @@ export async function apiClient<T = unknown>(
       throw new AppError({
         code: "NETWORK_ERROR",
         status: 0,
-        detail: "Unable to connect to the server. Please check your internet connection.",
+        detail:
+          "Unable to connect to the server. Please check your internet connection.",
         cause: error,
       });
     }
@@ -114,21 +117,33 @@ export const api = {
   get: <T = unknown>(endpoint: string, options?: RequestOptions) =>
     apiClient<T>(endpoint, { ...options, method: "GET" }),
 
-  post: <T = unknown>(endpoint: string, data?: unknown, options?: RequestOptions) =>
+  post: <T = unknown, D = unknown>(
+    endpoint: string,
+    data?: D,
+    options?: RequestOptions,
+  ) =>
     apiClient<T>(endpoint, {
       ...options,
       method: "POST",
       body: data ? JSON.stringify(data) : undefined,
     }),
 
-  put: <T = unknown>(endpoint: string, data?: unknown, options?: RequestOptions) =>
+  put: <T = unknown, D = unknown>(
+    endpoint: string,
+    data?: D,
+    options?: RequestOptions,
+  ) =>
     apiClient<T>(endpoint, {
       ...options,
       method: "PUT",
       body: data ? JSON.stringify(data) : undefined,
     }),
 
-  patch: <T = unknown>(endpoint: string, data?: unknown, options?: RequestOptions) =>
+  patch: <T = unknown, D = unknown>(
+    endpoint: string,
+    data?: D,
+    options?: RequestOptions,
+  ) =>
     apiClient<T>(endpoint, {
       ...options,
       method: "PATCH",

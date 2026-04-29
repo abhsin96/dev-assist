@@ -1,47 +1,66 @@
 import { auth } from "@/auth";
 import { NextResponse } from "next/server";
 
-// Mock thread data for now - will be replaced with actual API calls
-const mockThreads = [
-  {
-    id: "1",
-    title: "Getting started with DevHub",
-    createdAt: new Date(Date.now() - 86400000).toISOString(),
-    updatedAt: new Date(Date.now() - 86400000).toISOString(),
-  },
-  {
-    id: "2",
-    title: "How to use AI agents",
-    createdAt: new Date(Date.now() - 172800000).toISOString(),
-    updatedAt: new Date(Date.now() - 172800000).toISOString(),
-  },
-];
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export async function GET() {
   const session = await auth();
-  
-  if (!session) {
+
+  if (!session?.accessToken) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // TODO: Fetch actual threads from backend API
-  return NextResponse.json(mockThreads);
+  try {
+    const response = await fetch(`${API_BASE_URL}/threads`, {
+      headers: {
+        Authorization: `Bearer ${session.accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Backend returned ${response.status}`);
+    }
+
+    const threads = await response.json();
+    return NextResponse.json(threads);
+  } catch (error) {
+    console.error("Failed to fetch threads:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch threads" },
+      { status: 500 },
+    );
+  }
 }
 
-export async function POST() {
+export async function POST(request: Request) {
   const session = await auth();
-  
-  if (!session) {
+
+  if (!session?.accessToken) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // TODO: Create thread via backend API
-  const newThread = {
-    id: String(Date.now()),
-    title: "New conversation",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
+  try {
+    const body = await request.json();
+    const response = await fetch(`${API_BASE_URL}/threads`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.accessToken}`,
+      },
+      body: JSON.stringify(body),
+    });
 
-  return NextResponse.json(newThread, { status: 201 });
+    if (!response.ok) {
+      throw new Error(`Backend returned ${response.status}`);
+    }
+
+    const thread = await response.json();
+    return NextResponse.json(thread, { status: 201 });
+  } catch (error) {
+    console.error("Failed to create thread:", error);
+    return NextResponse.json(
+      { error: "Failed to create thread" },
+      { status: 500 },
+    );
+  }
 }

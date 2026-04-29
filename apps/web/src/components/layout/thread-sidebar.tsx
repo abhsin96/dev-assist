@@ -6,7 +6,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { Virtuoso } from "react-virtuoso";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
+import { ThreadListItem } from "@/features/threads/components/thread-list-item";
 import { useThreads } from "@/features/threads/hooks/use-threads";
 
 interface ThreadSidebarProps {
@@ -17,6 +17,9 @@ export function ThreadSidebar({ onThreadSelect }: ThreadSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { threads, isLoading, createThread } = useThreads();
+
+  // Extract thread ID from pathname
+  const activeThreadId = pathname?.match(/\/threads\/([^/]+)/)?.[1];
   const [isCreating, setIsCreating] = useState(false);
 
   const handleNewThread = async () => {
@@ -30,11 +33,6 @@ export function ThreadSidebar({ onThreadSelect }: ThreadSidebarProps) {
     } finally {
       setIsCreating(false);
     }
-  };
-
-  const handleThreadClick = (threadId: string) => {
-    router.push(`/threads/${threadId}`);
-    onThreadSelect?.();
   };
 
   return (
@@ -82,11 +80,10 @@ export function ThreadSidebar({ onThreadSelect }: ThreadSidebarProps) {
           <Virtuoso
             data={threads}
             itemContent={(index, thread) => (
-              <ThreadItem
+              <ThreadListItem
                 key={thread.id}
                 thread={thread}
-                isActive={pathname === `/threads/${thread.id}`}
-                onClick={() => handleThreadClick(thread.id)}
+                isActive={thread.id === activeThreadId}
               />
             )}
             className="h-full"
@@ -96,11 +93,10 @@ export function ThreadSidebar({ onThreadSelect }: ThreadSidebarProps) {
           <ScrollArea className="h-full">
             <div className="space-y-1 p-2">
               {threads.map((thread) => (
-                <ThreadItem
+                <ThreadListItem
                   key={thread.id}
                   thread={thread}
-                  isActive={pathname === `/threads/${thread.id}`}
-                  onClick={() => handleThreadClick(thread.id)}
+                  isActive={thread.id === activeThreadId}
                 />
               ))}
             </div>
@@ -108,43 +104,5 @@ export function ThreadSidebar({ onThreadSelect }: ThreadSidebarProps) {
         )}
       </div>
     </div>
-  );
-}
-
-interface ThreadItemProps {
-  thread: {
-    id: string;
-    title?: string;
-    updatedAt: string;
-  };
-  isActive: boolean;
-  onClick: () => void;
-}
-
-function ThreadItem({ thread, isActive, onClick }: ThreadItemProps) {
-  const title = thread.title || "New conversation";
-  const date = new Date(thread.updatedAt).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "w-full rounded-md px-3 py-2 text-left transition-colors",
-        "hover:bg-zinc-100 dark:hover:bg-zinc-800",
-        isActive && "bg-zinc-100 dark:bg-zinc-800",
-      )}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
-            {title}
-          </p>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">{date}</p>
-        </div>
-      </div>
-    </button>
   );
 }

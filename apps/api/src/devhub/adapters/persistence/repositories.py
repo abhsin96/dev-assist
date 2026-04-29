@@ -51,6 +51,34 @@ class ThreadRepository:
         orm = result.scalar_one_or_none()
         return _thread_to_domain(orm) if orm else None
 
+    async def create(self, user_id: uuid.UUID, title: str) -> Thread:
+        orm = OrmThread(user_id=user_id, title=title)
+        self._session.add(orm)
+        await self._session.commit()
+        await self._session.refresh(orm)
+        return _thread_to_domain(orm)
+
+    async def update(self, thread_id: uuid.UUID, title: str) -> Thread:
+        from datetime import UTC, datetime
+
+        from sqlalchemy import update
+
+        await self._session.execute(
+            update(OrmThread)
+            .where(OrmThread.id == thread_id)
+            .values(title=title, updated_at=datetime.now(UTC))
+        )
+        await self._session.commit()
+        result = await self._session.execute(select(OrmThread).where(OrmThread.id == thread_id))
+        orm = result.scalar_one()
+        return _thread_to_domain(orm)
+
+    async def delete(self, thread_id: uuid.UUID) -> None:
+        from sqlalchemy import delete
+
+        await self._session.execute(delete(OrmThread).where(OrmThread.id == thread_id))
+        await self._session.commit()
+
 
 def _user_to_domain(orm: OrmUser) -> User:
     return User(
