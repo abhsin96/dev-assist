@@ -88,3 +88,29 @@ class PRReview(BaseModel):
     non_blocking: list[str]
     nits: list[str]
     suggested_comment: str
+
+
+# ── Issue triage value objects ────────────────────────────────────────────────
+
+IssuePriority = Literal["P0", "P1", "P2", "P3"]
+
+
+class IssueTriage(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    issue_number: int
+    title: str
+    priority: IssuePriority
+    labels: list[str]
+    duplicate_of: int | None
+    suggested_assignee: str | None
+    rationale: str
+
+
+class IssueTriageResult(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    owner: str
+    repo: str
+    triaged: list[IssueTriage]
+    cache_hits: int

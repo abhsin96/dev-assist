@@ -25,6 +25,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
 
 from devhub.domain.agent_state import AgentErrorRecord, AgentState
+from devhub.domain.agents.issue_triager import make_issue_triager_node
 from devhub.domain.agents.pr_reviewer import make_pr_reviewer_node
 from devhub.domain.ports import ILLMPort, IMCPRegistry
 
@@ -34,9 +35,12 @@ _SUPERVISOR_PROMPT = (
 
 _ROUTE_ECHO = "echo_specialist"
 _ROUTE_PR_REVIEWER = "pr_reviewer"
+_ROUTE_ISSUE_TRIAGER = "issue_triager"
 _ROUTE_DONE = "__end__"
 
-_VALID_SPECIALIST_ROUTES: frozenset[str] = frozenset({_ROUTE_ECHO, _ROUTE_PR_REVIEWER})
+_VALID_SPECIALIST_ROUTES: frozenset[str] = frozenset(
+    {_ROUTE_ECHO, _ROUTE_PR_REVIEWER, _ROUTE_ISSUE_TRIAGER}
+)
 
 
 def _make_supervisor(llm: ILLMPort) -> Callable[[AgentState], Any]:
@@ -142,6 +146,10 @@ def build_supervisor_graph(
     builder.add_node(  # type: ignore[call-overload]
         _ROUTE_PR_REVIEWER,
         make_pr_reviewer_node(llm, mcp_registry),
+    )
+    builder.add_node(  # type: ignore[call-overload]
+        _ROUTE_ISSUE_TRIAGER,
+        make_issue_triager_node(llm, mcp_registry),
     )
 
     builder.add_edge(START, "supervisor")
