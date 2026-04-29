@@ -78,3 +78,13 @@ class ToolResult(BaseModel):
     ok: bool
     data: Any = None
     error: str | None = None
+
+
+class PRReview(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    summary: str
+    blocking: list[str]
+    non_blocking: list[str]
+    nits: list[str]
+    suggested_comment: str

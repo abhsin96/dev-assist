@@ -1,12 +1,12 @@
-"""Supervisor LangGraph — skeleton with one placeholder specialist.
+"""Supervisor LangGraph — routes to specialist agents.
 
 Build:
-    graph = build_supervisor_graph(llm)
+    graph = build_supervisor_graph(llm, mcp_registry=registry)
     compiled = graph.compile(checkpointer=saver)
 
-The supervisor node calls the LLM to decide the route. The echo_specialist
-is a placeholder that echoes the last human message back; real specialists
-(DEVHUB-011 +) will replace / join it.
+The supervisor node calls the LLM to decide the route.  Specialists return
+to the supervisor after completing their work; the supervisor then decides
+whether to route again or end.
 
 Error contract: no node raises out of the graph. All exceptions are caught,
 appended to ``state["errors"]``, and the graph ends gracefully.
@@ -25,14 +25,18 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
 
 from devhub.domain.agent_state import AgentErrorRecord, AgentState
-from devhub.domain.ports import ILLMPort
+from devhub.domain.agents.pr_reviewer import make_pr_reviewer_node
+from devhub.domain.ports import ILLMPort, IMCPRegistry
 
 _SUPERVISOR_PROMPT = (
     pathlib.Path(__file__).parent.parent / "prompts" / "supervisor.md"
 ).read_text()
 
 _ROUTE_ECHO = "echo_specialist"
+_ROUTE_PR_REVIEWER = "pr_reviewer"
 _ROUTE_DONE = "__end__"
+
+_VALID_SPECIALIST_ROUTES: frozenset[str] = frozenset({_ROUTE_ECHO, _ROUTE_PR_REVIEWER})
 
 
 def _make_supervisor(llm: ILLMPort) -> Callable[[AgentState], Any]:
@@ -104,7 +108,7 @@ def _parse_route(content: str) -> str:
     """Extract route from supervisor LLM response.
 
     Accepts a JSON line ``{"route": "...", "reasoning": "..."}`` or falls back
-    to ``echo_specialist`` if parsing fails.
+    to ``echo_specialist`` if parsing fails or the route is unknown.
     """
     try:
         start = content.find("{")
@@ -112,18 +116,33 @@ def _parse_route(content: str) -> str:
         if start != -1 and end > start:
             data = json.loads(content[start:end])
             route = str(data.get("route", _ROUTE_ECHO))
-            return _ROUTE_DONE if route.upper() == "DONE" else route
+            if route.upper() == "DONE":
+                return _ROUTE_DONE
+            if route in _VALID_SPECIALIST_ROUTES:
+                return route
     except (json.JSONDecodeError, KeyError):
         pass
     return _ROUTE_ECHO
 
 
-def build_supervisor_graph(llm: ILLMPort) -> StateGraph:  # type: ignore[type-arg]
-    """Return an uncompiled graph — caller adds the checkpointer at compile time."""
+def build_supervisor_graph(
+    llm: ILLMPort,
+    mcp_registry: IMCPRegistry | None = None,
+) -> StateGraph:  # type: ignore[type-arg]
+    """Return an uncompiled graph — caller adds the checkpointer at compile time.
+
+    ``mcp_registry`` is forwarded to the pr_reviewer node so it can fetch
+    GitHub tools lazily at invocation time.  Pass ``None`` in tests or when
+    no MCP servers are connected.
+    """
     builder: StateGraph[AgentState] = StateGraph(AgentState)
 
     builder.add_node("supervisor", _make_supervisor(llm))  # type: ignore[call-overload]
     builder.add_node(_ROUTE_ECHO, _make_echo_specialist(llm))  # type: ignore[call-overload]
+    builder.add_node(  # type: ignore[call-overload]
+        _ROUTE_PR_REVIEWER,
+        make_pr_reviewer_node(llm, mcp_registry),
+    )
 
     builder.add_edge(START, "supervisor")
 
@@ -133,6 +152,7 @@ def build_supervisor_graph(llm: ILLMPort) -> StateGraph:  # type: ignore[type-ar
 def compile_supervisor_graph(
     llm: ILLMPort,
     checkpointer: BaseCheckpointSaver,  # type: ignore[type-arg]
+    mcp_registry: IMCPRegistry | None = None,
 ) -> Any:
     """Compile the supervisor graph with the given checkpointer."""
-    return build_supervisor_graph(llm).compile(checkpointer=checkpointer)
+    return build_supervisor_graph(llm, mcp_registry=mcp_registry).compile(checkpointer=checkpointer)
