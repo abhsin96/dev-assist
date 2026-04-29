@@ -1,47 +1,140 @@
-"use client";
+import { parseProblem } from "@/lib/errors";
 
-import * as Sentry from "@sentry/nextjs";
+/**
+ * Base API client configuration
+ */
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-export const REQUEST_ID_HEADER = "X-Request-Id";
+/**
+ * Request options for API calls
+ */
+export interface RequestOptions extends RequestInit {
+  /**
+   * Additional headers to include in the request
+   */
+  headers?: HeadersInit;
+  
+  /**
+   * Request timeout in milliseconds (default: 30000)
+   */
+  timeout?: number;
+  
+  /**
+   * Whether to include credentials (cookies) in the request
+   */
+  credentials?: RequestCredentials;
+}
 
-async function getApiToken(): Promise<string | null> {
+/**
+ * Enhanced fetch wrapper that throws AppError for non-2xx responses
+ * Never returns raw error JSON to callers
+ */
+export async function apiClient<T = unknown>(
+  endpoint: string,
+  options: RequestOptions = {}
+): Promise<T> {
+  const { timeout = 30000, headers = {}, ...fetchOptions } = options;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
   try {
-    const res = await fetch("/api/auth/token");
-    if (!res.ok) return null;
-    const data = (await res.json()) as { token?: string };
-    return data.token ?? null;
-  } catch {
-    return null;
+    const url = endpoint.startsWith("http") ? endpoint : `${API_BASE_URL}${endpoint}`;
+
+    const response = await fetch(url, {
+      ...fetchOptions,
+      headers: {
+        "Content-Type": "application/json",
+        ...headers,
+      },
+      credentials: fetchOptions.credentials ?? "include",
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    // For successful responses, parse and return the data
+    if (response.ok) {
+      // Handle 204 No Content
+      if (response.status === 204) {
+        return undefined as T;
+      }
+
+      const contentType = response.headers.get("content-type");
+      if (contentType?.includes("application/json")) {
+        return await response.json();
+      }
+
+      // For non-JSON responses, return as text
+      return (await response.text()) as T;
+    }
+
+    // For non-2xx responses, parse as AppError and throw
+    const error = await parseProblem(response);
+    throw error;
+  } catch (error) {
+    clearTimeout(timeoutId);
+
+    // If it's already an AppError, re-throw it
+    if (error instanceof Error && error.name === "AppError") {
+      throw error;
+    }
+
+    // Handle abort/timeout errors
+    if (error instanceof Error && error.name === "AbortError") {
+      const { AppError } = await import("@/lib/errors");
+      throw new AppError({
+        code: "REQUEST_TIMEOUT",
+        status: 408,
+        detail: "The request took too long to complete. Please try again.",
+        cause: error,
+      });
+    }
+
+    // Handle network errors
+    if (error instanceof TypeError) {
+      const { AppError } = await import("@/lib/errors");
+      throw new AppError({
+        code: "NETWORK_ERROR",
+        status: 0,
+        detail: "Unable to connect to the server. Please check your internet connection.",
+        cause: error,
+      });
+    }
+
+    // Re-throw unknown errors
+    throw error;
   }
 }
 
 /**
- * Thin fetch wrapper that:
- * - Attaches a client-generated or Sentry-propagated trace_id as X-Request-Id
- * - Fetches a short-lived API JWT from the BFF and attaches it as Authorization
- * - Reads X-Request-Id back from responses and tags the current Sentry scope
+ * Convenience methods for common HTTP verbs
  */
-export async function apiFetch(
-  input: RequestInfo | URL,
-  init: RequestInit = {}
-): Promise<Response> {
-  const traceId =
-    Sentry.getCurrentScope().getPropagationContext().traceId ??
-    crypto.randomUUID();
+export const api = {
+  get: <T = unknown>(endpoint: string, options?: RequestOptions) =>
+    apiClient<T>(endpoint, { ...options, method: "GET" }),
 
-  const headers = new Headers(init.headers);
-  headers.set(REQUEST_ID_HEADER, traceId);
-  headers.set("Content-Type", "application/json");
+  post: <T = unknown>(endpoint: string, data?: unknown, options?: RequestOptions) =>
+    apiClient<T>(endpoint, {
+      ...options,
+      method: "POST",
+      body: data ? JSON.stringify(data) : undefined,
+    }),
 
-  const token = await getApiToken();
-  if (token) headers.set("Authorization", `Bearer ${token}`);
+  put: <T = unknown>(endpoint: string, data?: unknown, options?: RequestOptions) =>
+    apiClient<T>(endpoint, {
+      ...options,
+      method: "PUT",
+      body: data ? JSON.stringify(data) : undefined,
+    }),
 
-  const response = await fetch(input, { ...init, headers });
+  patch: <T = unknown>(endpoint: string, data?: unknown, options?: RequestOptions) =>
+    apiClient<T>(endpoint, {
+      ...options,
+      method: "PATCH",
+      body: data ? JSON.stringify(data) : undefined,
+    }),
 
-  const responseTraceId = response.headers.get(REQUEST_ID_HEADER);
-  if (responseTraceId) {
-    Sentry.getCurrentScope().setTag("trace_id", responseTraceId);
-  }
-
-  return response;
-}
+  delete: <T = unknown>(endpoint: string, options?: RequestOptions) =>
+    apiClient<T>(endpoint, { ...options, method: "DELETE" }),
+};
