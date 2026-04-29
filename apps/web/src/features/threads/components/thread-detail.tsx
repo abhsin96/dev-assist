@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
-import { MessageSquare } from "lucide-react";
+import { MessageSquare, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { StreamingMessage } from "@/components/messages/streaming-message";
+import { JumpToLatest } from "@/components/messages/jump-to-latest";
+import { useStreamingMessage } from "@/features/threads/hooks/use-streaming-message";
+import { useAutoScroll } from "@/hooks/use-auto-scroll";
+import { toast } from "sonner";
 
 interface Thread {
   id: string;
@@ -21,6 +26,7 @@ interface ThreadDetailProps {
 
 export function ThreadDetail({ threadId, initialThread }: ThreadDetailProps) {
   const router = useRouter();
+  const [inputValue, setInputValue] = useState("");
 
   // Use React Query for client-side data fetching and caching
   const {
@@ -36,6 +42,30 @@ export function ThreadDetail({ threadId, initialThread }: ThreadDetailProps) {
     retry: 1,
   });
 
+  // Streaming message hook
+  const {
+    parts,
+    isStreaming,
+    error: streamError,
+    startStream,
+    cancelStream,
+    retry,
+  } = useStreamingMessage({
+    threadId,
+    onComplete: (parts) => {
+      console.log("Stream completed with parts:", parts);
+      toast.success("Message completed");
+    },
+    onError: (error) => {
+      console.error("Stream error:", error);
+    },
+  });
+
+  // Auto-scroll hook
+  const { containerRef, showJumpToLatest, scrollToBottom } = useAutoScroll({
+    isStreaming,
+  });
+
   // Handle error state
   useEffect(() => {
     if (error) {
@@ -43,10 +73,42 @@ export function ThreadDetail({ threadId, initialThread }: ThreadDetailProps) {
     }
   }, [error]);
 
+  // Handle send message
+  const handleSend = async () => {
+    if (!inputValue.trim() || isStreaming) return;
+
+    try {
+      // Start a new run with the user message
+      const response = await api.post<{ run_id: string }>("/api/runs/start", {
+        thread_id: threadId,
+        message: inputValue.trim(),
+      });
+
+      // Clear input
+      setInputValue("");
+
+      // Start streaming the response
+      await startStream(response.run_id);
+    } catch (error) {
+      console.error("Failed to send message:", error);
+      toast.error("Failed to send message");
+    }
+  };
+
+  // Handle key press
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="text-zinc-500 dark:text-zinc-400">Loading thread...</div>
+        <div className="text-zinc-500 dark:text-zinc-400">
+          Loading thread...
+        </div>
       </div>
     );
   }
@@ -62,7 +124,8 @@ export function ThreadDetail({ threadId, initialThread }: ThreadDetailProps) {
             Thread not found
           </h2>
           <p className="mt-2 text-zinc-500 dark:text-zinc-400">
-            The conversation you are looking for does not exist or has been deleted.
+            The conversation you are looking for does not exist or has been
+            deleted.
           </p>
           <Button onClick={() => router.push("/threads")} className="mt-6">
             Back to Conversations
@@ -76,45 +139,101 @@ export function ThreadDetail({ threadId, initialThread }: ThreadDetailProps) {
     <div className="flex h-full flex-col">
       {/* Thread header */}
       <div className="border-b border-zinc-200 dark:border-zinc-800 px-6 py-4">
-        <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
-          {thread.title || "New conversation"}
-        </h1>
-        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          Last updated {new Date(thread.updatedAt).toLocaleString()}
-        </p>
-      </div>
-
-      {/* Message history area - placeholder for now */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
-        <div className="flex h-full items-center justify-center">
-          <div className="text-center max-w-md">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800">
-              <MessageSquare className="h-6 w-6 text-zinc-600 dark:text-zinc-400" />
-            </div>
-            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-              No messages yet
-            </h2>
-            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-              Start a conversation by sending a message below.
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+              {thread.title || "New conversation"}
+            </h1>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+              Last updated {new Date(thread.updatedAt).toLocaleString()}
             </p>
           </div>
+          {isStreaming && (
+            <Button
+              onClick={cancelStream}
+              variant="outline"
+              size="sm"
+              className="gap-2"
+            >
+              <X className="h-4 w-4" />
+              Cancel
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Message input area - placeholder for now */}
+      {/* Message history area */}
+      <div
+        ref={containerRef}
+        className="flex-1 overflow-y-auto px-6 py-4 relative"
+      >
+        {parts.length === 0 ? (
+          <div className="flex h-full items-center justify-center">
+            <div className="text-center max-w-md">
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800">
+                <MessageSquare className="h-6 w-6 text-zinc-600 dark:text-zinc-400" />
+              </div>
+              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                No messages yet
+              </h2>
+              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                Start a conversation by sending a message below.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4 max-w-4xl mx-auto">
+            <StreamingMessage
+              parts={parts}
+              isStreaming={isStreaming}
+              role="assistant"
+            />
+            {streamError && (
+              <div className="flex items-center justify-center gap-2">
+                <p className="text-sm text-red-600 dark:text-red-400">
+                  {streamError.message}
+                </p>
+                <Button onClick={retry} size="sm" variant="outline">
+                  Retry
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Jump to latest pill */}
+        <JumpToLatest
+          show={showJumpToLatest}
+          onClick={() => scrollToBottom()}
+        />
+      </div>
+
+      {/* Message input area */}
       <div className="border-t border-zinc-200 dark:border-zinc-800 px-6 py-4">
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            placeholder="Type a message... (streaming functionality coming soon)"
-            className="flex-1 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
-            disabled
-          />
-          <Button disabled>Send</Button>
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-end gap-2">
+            <textarea
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyPress}
+              placeholder="Type a message..."
+              className="flex-1 min-h-[44px] max-h-[200px] resize-none rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-4 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:focus:ring-zinc-100"
+              disabled={isStreaming}
+              rows={1}
+            />
+            <Button
+              onClick={handleSend}
+              disabled={!inputValue.trim() || isStreaming}
+              size="icon"
+              className="h-[44px] w-[44px]"
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          </div>
+          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+            Press Enter to send, Shift+Enter for new line
+          </p>
         </div>
-        <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-          Message streaming will be implemented in the next story
-        </p>
       </div>
     </div>
   );
