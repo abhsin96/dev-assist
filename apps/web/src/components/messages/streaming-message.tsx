@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { Loader2, AlertCircle } from "lucide-react";
 import { toolRendererRegistry } from "@/lib/tools";
 import { GenericToolCard } from "@/components/tools";
+import { TraceDrawer } from "@/components/trace";
+import { useTraceData } from "@/features/threads/hooks/use-trace-data";
 
 export interface MessagePart {
   type: "text" | "tool-call" | "tool-result" | "error" | "interrupt" | "state";
@@ -185,12 +187,21 @@ function MessagePartRenderer({ part }: { part: MessagePart }) {
 /**
  * Streaming message component with support for text, tool calls, results, errors, and interrupts
  */
+export interface StreamingMessageWithTraceProps extends StreamingMessageProps {
+  runId?: string;
+  messageId?: string;
+  showTraceButton?: boolean;
+}
+
 export function StreamingMessage({
   parts,
   isStreaming,
   role,
   className,
-}: StreamingMessageProps) {
+  runId,
+  messageId,
+  showTraceButton = true,
+}: StreamingMessageWithTraceProps) {
   const messageEndRef = useRef<HTMLDivElement>(null);
   const [showCursor, setShowCursor] = useState(false);
 
@@ -234,7 +245,41 @@ export function StreamingMessage({
           </div>
         )}
       </div>
+
+      {/* Trace viewer button - only show for assistant messages with runId */}
+      {role === "assistant" &&
+        runId &&
+        messageId &&
+        showTraceButton &&
+        !isStreaming && (
+          <TraceViewerButton runId={runId} messageId={messageId} />
+        )}
+
       <div ref={messageEndRef} />
+    </div>
+  );
+}
+
+/**
+ * Trace viewer button component
+ * Fetches trace data and renders the trace drawer
+ */
+function TraceViewerButton({
+  runId,
+  messageId,
+}: {
+  runId: string;
+  messageId: string;
+}) {
+  const { data: traceData, isLoading, error } = useTraceData(runId);
+
+  if (isLoading || error || !traceData) {
+    return null;
+  }
+
+  return (
+    <div className="mt-3 pt-3 border-t border-zinc-200 dark:border-zinc-800">
+      <TraceDrawer messageId={messageId} runId={runId} traceData={traceData} />
     </div>
   );
 }
