@@ -82,13 +82,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.event_store = EventStore()
     logger.info("app.graph_ready")
 
+    # Create a session for the background task that will live for the app lifetime
+    session = get_session_factory()()
+    app.state.background_session = session
+
     # Start background task to expire approvals
-    async with get_session_factory()() as session:
-        approval_repo = HITLApprovalRepository(session)
-        expire_task = ExpireApprovalsTask(approval_repo, interval_seconds=60)
-        await expire_task.start()
-        app.state.expire_task = expire_task
-        logger.info("app.expire_approvals_task_started")
+    approval_repo = HITLApprovalRepository(session)
+    expire_task = ExpireApprovalsTask(approval_repo, interval_seconds=60)
+    await expire_task.start()
+    app.state.expire_task = expire_task
+    logger.info("app.expire_approvals_task_started")
 
     yield
 
@@ -96,6 +99,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if hasattr(app.state, "expire_task"):
         await app.state.expire_task.stop()
         logger.info("app.expire_approvals_task_stopped")
+
+    # Close the background session
+    if hasattr(app.state, "background_session"):
+        await app.state.background_session.close()
+        logger.info("app.background_session_closed")
 
     logger.info("app.shutting_down")
 
