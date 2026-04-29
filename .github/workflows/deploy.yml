@@ -1,0 +1,71 @@
+name: Deploy — Staging
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false  # never cancel a running deploy
+
+env:
+  FLY_APP: devhub-api-staging
+
+jobs:
+  # ─── API → Fly.io ─────────────────────────────────────────────────────────
+  deploy-api:
+    name: API → Fly.io
+    runs-on: ubuntu-latest
+    environment: staging
+    defaults:
+      run:
+        working-directory: apps/api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy
+        run: flyctl deploy --remote-only --app ${{ env.FLY_APP }} --wait-timeout 120
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Verify health after deploy
+        run: |
+          sleep 10
+          status=$(curl -sf -o /dev/null -w "%{http_code}" \
+            https://${{ env.FLY_APP }}.fly.dev/healthz)
+          [ "$status" = "200" ] || (echo "Post-deploy healthz returned $status" && exit 1)
+
+  # ─── Web → Vercel ─────────────────────────────────────────────────────────
+  deploy-web:
+    name: Web → Vercel
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Deploy
+        run: |
+          pnpm dlx vercel \
+            --prod \
+            --token=${{ secrets.VERCEL_TOKEN }} \
+            --scope=${{ secrets.VERCEL_ORG_ID }} \
+            --yes \
+            apps/web
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          # Runtime env vars are managed in Vercel dashboard — not passed here

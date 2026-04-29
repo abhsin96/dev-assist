@@ -1,0 +1,42 @@
+# Fly.io configuration for devhub-api (staging)
+# Deploy: flyctl deploy --remote-only --app devhub-api-staging
+# Autoscale: flyctl autoscale set min=1 max=3 --app devhub-api-staging
+
+app            = "devhub-api-staging"
+primary_region = "iad"
+
+[build]
+
+[env]
+  APP_ENV   = "staging"
+  LOG_LEVEL = "INFO"
+  PORT      = "8000"
+
+[http_service]
+  internal_port        = 8000
+  force_https          = true
+  auto_stop_machines   = "stop"
+  auto_start_machines  = true
+  min_machines_running = 1
+  processes            = ["app"]
+
+  [http_service.concurrency]
+    type       = "connections"
+    hard_limit = 50
+    soft_limit = 40
+
+  [[http_service.checks]]
+    grace_period = "15s"
+    interval     = "30s"
+    method       = "GET"
+    path         = "/healthz"
+    protocol     = "https"
+    timeout      = "5s"
+
+[[vm]]
+  memory   = "512mb"
+  cpu_kind = "shared"
+  cpus     = 1
+
+[deploy]
+  strategy = "rolling"
