@@ -32,7 +32,7 @@ from devhub.adapters.persistence.database import get_db
 from devhub.adapters.persistence.repositories.oauth_connection_repository import (
     OAuthConnectionRepository,
 )
-from devhub.api.deps import CurrentUser
+from devhub.api.deps import CurrentUserId
 from devhub.core.errors import AuthRequiredError
 from devhub.core.logging import get_logger
 from devhub.core.settings import get_settings
@@ -125,23 +125,23 @@ def _pack_tokens(tokens: OAuthTokens, settings: Any) -> tuple[bytes, bytes | Non
 @router.get("/{provider}/start")
 async def oauth_start(
     provider: str,
-    claims: CurrentUser,
+    user_id: CurrentUserId,
     redis: Annotated[Redis, Depends(get_redis)],
 ) -> RedirectResponse:
     """Generate state, store in Redis, redirect to provider consent screen."""
     prov = _assert_valid_provider(provider)
     settings = get_settings()
 
-    user_id = str(claims["sub"])
+    user_id_str = str(user_id)
     state_token = os.urandom(24).hex()
-    state = f"{user_id}:{state_token}"
+    state = f"{user_id_str}:{state_token}"
 
-    await redis.setex(_state_key(state_token), _STATE_TTL, user_id)
+    await redis.setex(_state_key(state_token), _STATE_TTL, user_id_str)
 
     redirect_uri = f"{settings.frontend_url}/api/connect/{prov}/callback"
     url = build_auth_url(prov, state, redirect_uri, settings)
 
-    logger.info("oauth.start", provider=prov, user_id=user_id)
+    logger.info("oauth.start", provider=prov, user_id=user_id_str)
     return RedirectResponse(url=url, status_code=status.HTTP_302_FOUND)
 
 
@@ -203,13 +203,12 @@ async def oauth_callback(
 @router.delete("/{provider}", status_code=status.HTTP_204_NO_CONTENT)
 async def oauth_revoke(
     provider: str,
-    claims: CurrentUser,
+    user_id: CurrentUserId,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
     """Invalidate token at provider, mark local connection revoked, audit."""
     prov = _assert_valid_provider(provider)
     settings = get_settings()
-    user_id = uuid.UUID(str(claims["sub"]))
 
     repo = OAuthConnectionRepository(db)
     tokens = await repo.get_encrypted_tokens(user_id, prov)
@@ -238,11 +237,10 @@ async def oauth_revoke(
 
 @router.get("", response_model=list[dict[str, Any]])
 async def list_connections(
-    claims: CurrentUser,
+    user_id: CurrentUserId,
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> list[dict[str, Any]]:
     """Return active OAuth connections for the authenticated user."""
-    user_id = uuid.UUID(str(claims["sub"]))
     repo = OAuthConnectionRepository(db)
     connections: list[OAuthConnection] = await repo.list_for_user(user_id)
     return [

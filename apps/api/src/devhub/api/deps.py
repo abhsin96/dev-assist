@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from typing import Annotated, Any
 
 from fastapi import Depends, Request, Security
@@ -48,6 +49,26 @@ async def get_current_user(
 
 
 CurrentUser = Annotated[dict[str, object], Security(get_current_user)]
+
+
+async def get_current_user_id(
+    claims: CurrentUser,
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> uuid.UUID:
+    """Resolve the caller's DB user UUID from JWT claims.
+
+    The BFF mints tokens with sub=email. This dep upserts the user row on first
+    call so every authenticated endpoint gets a stable UUID without any extra
+    round-trip from the web layer.
+    """
+    email = str(claims["sub"])
+    name = str(claims["name"]) if claims.get("name") else None
+    image = str(claims["image"]) if claims.get("image") else None
+    user = await UserRepository(session).upsert(email, name, image)
+    return user.id
+
+
+CurrentUserId = Annotated[uuid.UUID, Depends(get_current_user_id)]
 
 
 # ── Persistence repos ─────────────────────────────────────────────────────────

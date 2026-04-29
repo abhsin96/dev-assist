@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from devhub.api.deps import get_list_threads_use_case
+from devhub.api.deps import get_current_user_id, get_list_threads_use_case
 from devhub.application.use_cases.list_threads import ListThreadsUseCase
 from devhub.domain.models import Thread
 from devhub.domain.ports import IThreadRepository
@@ -79,12 +79,14 @@ def auth_headers(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
 async def test_list_threads_returns_users_threads(
     auth_headers: dict[str, str],
 ) -> None:
+    app.dependency_overrides[get_current_user_id] = lambda: _USER_ID
     app.dependency_overrides[get_list_threads_use_case] = _make_fake_use_case_override
 
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/threads", headers=auth_headers)
     finally:
+        app.dependency_overrides.pop(get_current_user_id, None)
         app.dependency_overrides.pop(get_list_threads_use_case, None)
 
     assert response.status_code == 200
