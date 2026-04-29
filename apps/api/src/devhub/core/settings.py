@@ -40,6 +40,14 @@ class Settings(BaseSettings):
     # Auth
     api_jwt_secret: str = Field(default="change_me_jwt_secret")
 
+    # OAuth connectors — set in production; dev falls back to an ephemeral in-process key
+    oauth_encryption_key: str = Field(default="")  # 64-char hex = 32-byte AES-256 key
+    github_client_id: str = Field(default="")
+    github_client_secret: str = Field(default="")
+    slack_client_id: str = Field(default="")
+    slack_client_secret: str = Field(default="")
+    frontend_url: str = Field(default="http://localhost:3000")
+
     # Sentry
     sentry_dsn: str = Field(default="")
     git_sha: str = Field(default="unknown")

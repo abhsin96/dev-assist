@@ -16,6 +16,7 @@ class ErrorCode(StrEnum):
     INTERNAL_ERROR = "INTERNAL_ERROR"
     VALIDATION_ERROR = "VALIDATION_ERROR"
     AUTH_ERROR = "AUTH_ERROR"
+    AUTH_REQUIRED = "AUTH_REQUIRED"
     PERMISSION_ERROR = "PERMISSION_ERROR"
     NOT_FOUND_ERROR = "NOT_FOUND_ERROR"
     RATE_LIMIT_ERROR = "RATE_LIMIT_ERROR"
@@ -107,6 +108,14 @@ class AgentError(DevHubError):
     code = ErrorCode.AGENT_ERROR
     http_status = 500
     user_message = "Agent encountered an error"
+
+
+class AuthRequiredError(DevHubError):
+    """Raised when an OAuth-connected provider token is missing or revoked."""
+
+    code = ErrorCode.AUTH_REQUIRED
+    http_status = 401
+    user_message = "OAuth connection required. Please connect your account in Settings."
 
 
 class UpstreamError(DevHubError):

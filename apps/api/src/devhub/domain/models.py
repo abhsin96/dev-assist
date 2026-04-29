@@ -226,3 +226,27 @@ class AuditLogEntry(BaseModel):
     decision: ApprovalDecision
     patched_args: dict[str, Any] | None
     timestamp: datetime
+
+
+# ── OAuth connector value objects ─────────────────────────────────────────────
+
+OAuthProvider = Literal["github", "slack"]
+OAuthEvent = Literal["connect", "refresh", "revoke"]
+
+
+class OAuthConnection(BaseModel):
+    """Public metadata for an OAuth connector — never includes raw token bytes."""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: uuid.UUID
+    user_id: uuid.UUID
+    provider: OAuthProvider
+    scope: str
+    connected_at: datetime
+    token_expires_at: datetime | None = None
+    revoked_at: datetime | None = None
+
+    @property
+    def is_active(self) -> bool:
+        return self.revoked_at is None

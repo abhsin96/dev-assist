@@ -45,6 +45,15 @@ class FakeThreadRepository:
             None,
         )
 
+    async def create(self, user_id: uuid.UUID, title: str) -> Thread:  # noqa: ARG002
+        raise NotImplementedError
+
+    async def update(self, thread_id: uuid.UUID, title: str) -> Thread:  # noqa: ARG002
+        raise NotImplementedError
+
+    async def delete(self, thread_id: uuid.UUID) -> None:  # noqa: ARG002
+        raise NotImplementedError
+
 
 assert isinstance(FakeThreadRepository([]), IThreadRepository)  # structural check
 
@@ -74,7 +83,7 @@ async def test_list_threads_returns_users_threads(
 
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get("/threads", headers=auth_headers)
+            response = await client.get("/api/threads", headers=auth_headers)
     finally:
         app.dependency_overrides.pop(get_list_threads_use_case, None)
 
@@ -88,7 +97,7 @@ async def test_list_threads_returns_users_threads(
 @pytest.mark.asyncio
 async def test_list_threads_requires_auth() -> None:
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.get("/threads")
+        response = await client.get("/api/threads")
 
     assert response.status_code == 401
     assert response.headers["content-type"] == "application/problem+json"

@@ -18,6 +18,9 @@ from devhub.domain.models import (
     MCPServerCreate,
     MCPServerInfo,
     MCPServerUpdate,
+    OAuthConnection,
+    OAuthEvent,
+    OAuthProvider,
     Run,
     Thread,
     ToolCall,
@@ -125,6 +128,46 @@ class IVectorStore(Protocol):
     """Vector similarity search over embedded code chunks."""
 
     async def search(self, query: str, *, k: int = 10) -> list[CodeSearchHit]: ...
+
+
+@runtime_checkable
+class IOAuthConnectionRepository(Protocol):
+    """Persist per-user OAuth tokens (encrypted) and emit audit events."""
+
+    async def upsert(
+        self,
+        user_id: uuid.UUID,
+        provider: OAuthProvider,
+        encrypted_access_token: bytes,
+        encrypted_refresh_token: bytes | None,
+        scope: str,
+        token_expires_at: object | None,
+    ) -> OAuthConnection: ...
+
+    async def get(self, user_id: uuid.UUID, provider: OAuthProvider) -> OAuthConnection | None: ...
+
+    async def get_encrypted_tokens(
+        self, user_id: uuid.UUID, provider: OAuthProvider
+    ) -> tuple[bytes, bytes | None] | None:
+        """Return (encrypted_access_token, encrypted_refresh_token) or None if not found."""
+        ...
+
+    async def update_tokens(
+        self,
+        user_id: uuid.UUID,
+        provider: OAuthProvider,
+        encrypted_access_token: bytes,
+        encrypted_refresh_token: bytes | None,
+        token_expires_at: object | None,
+    ) -> None: ...
+
+    async def revoke(self, user_id: uuid.UUID, provider: OAuthProvider) -> None: ...
+
+    async def list_for_user(self, user_id: uuid.UUID) -> list[OAuthConnection]: ...
+
+    async def audit(
+        self, user_id: uuid.UUID, provider: OAuthProvider, event: OAuthEvent
+    ) -> None: ...
 
 
 @runtime_checkable

@@ -68,6 +68,7 @@ from devhub.api.middleware import RequestIdMiddleware  # noqa: E402
 from devhub.api.routers.auth import router as auth_router  # noqa: E402
 from devhub.api.routers.health import router as health_router  # noqa: E402
 from devhub.api.routers.mcp_connections import router as mcp_router  # noqa: E402
+from devhub.api.routers.oauth_connect import router as oauth_router  # noqa: E402
 from devhub.api.routers.runs import router as runs_router  # noqa: E402
 from devhub.api.routers.threads import router as threads_router  # noqa: E402
 from devhub.domain.graphs.supervisor import compile_supervisor_graph  # noqa: E402
@@ -183,6 +184,7 @@ register_error_handlers(app)
 app.include_router(auth_router, prefix="/api")
 app.include_router(health_router, prefix="/api")
 app.include_router(mcp_router, prefix="/api")
+app.include_router(oauth_router, prefix="/api")
 app.include_router(threads_router, prefix="/api")
 app.include_router(runs_router, prefix="/api")
 
