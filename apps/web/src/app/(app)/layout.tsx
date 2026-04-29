@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
+import { AppShell } from "@/components/layout/app-shell";
 
 export default async function AppLayout({
   children,
@@ -8,5 +9,6 @@ export default async function AppLayout({
 }) {
   const session = await auth();
   if (!session) redirect("/login");
-  return <>{children}</>;
+
+  return <AppShell user={session.user}>{children}</AppShell>;
 }
