@@ -25,10 +25,11 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Command
 
 from devhub.domain.agent_state import AgentErrorRecord, AgentState
+from devhub.domain.agents.code_searcher import make_code_searcher_node
 from devhub.domain.agents.doc_writer import make_doc_writer_node
 from devhub.domain.agents.issue_triager import make_issue_triager_node
 from devhub.domain.agents.pr_reviewer import make_pr_reviewer_node
-from devhub.domain.ports import ILLMPort, IMCPRegistry
+from devhub.domain.ports import ILLMPort, IMCPRegistry, IVectorStore
 
 _SUPERVISOR_PROMPT = (
     pathlib.Path(__file__).parent.parent / "prompts" / "supervisor.md"
@@ -38,10 +39,11 @@ _ROUTE_ECHO = "echo_specialist"
 _ROUTE_PR_REVIEWER = "pr_reviewer"
 _ROUTE_ISSUE_TRIAGER = "issue_triager"
 _ROUTE_DOC_WRITER = "doc_writer"
+_ROUTE_CODE_SEARCHER = "code_searcher"
 _ROUTE_DONE = "__end__"
 
 _VALID_SPECIALIST_ROUTES: frozenset[str] = frozenset(
-    {_ROUTE_ECHO, _ROUTE_PR_REVIEWER, _ROUTE_ISSUE_TRIAGER, _ROUTE_DOC_WRITER}
+    {_ROUTE_ECHO, _ROUTE_PR_REVIEWER, _ROUTE_ISSUE_TRIAGER, _ROUTE_DOC_WRITER, _ROUTE_CODE_SEARCHER}
 )
 
 
@@ -134,12 +136,13 @@ def _parse_route(content: str) -> str:
 def build_supervisor_graph(
     llm: ILLMPort,
     mcp_registry: IMCPRegistry | None = None,
+    vector_store: IVectorStore | None = None,
 ) -> StateGraph:  # type: ignore[type-arg]
     """Return an uncompiled graph — caller adds the checkpointer at compile time.
 
-    ``mcp_registry`` is forwarded to the pr_reviewer node so it can fetch
-    GitHub tools lazily at invocation time.  Pass ``None`` in tests or when
-    no MCP servers are connected.
+    ``mcp_registry`` is forwarded to specialist nodes for lazy tool fetching.
+    ``vector_store`` is forwarded to code_searcher for semantic retrieval.
+    Pass ``None`` for either in tests or degraded mode.
     """
     builder: StateGraph[AgentState] = StateGraph(AgentState)
 
@@ -157,6 +160,10 @@ def build_supervisor_graph(
         _ROUTE_DOC_WRITER,
         make_doc_writer_node(llm, mcp_registry),
     )
+    builder.add_node(  # type: ignore[call-overload]
+        _ROUTE_CODE_SEARCHER,
+        make_code_searcher_node(llm, mcp_registry, vector_store),
+    )
 
     builder.add_edge(START, "supervisor")
 
@@ -167,6 +174,9 @@ def compile_supervisor_graph(
     llm: ILLMPort,
     checkpointer: BaseCheckpointSaver,  # type: ignore[type-arg]
     mcp_registry: IMCPRegistry | None = None,
+    vector_store: IVectorStore | None = None,
 ) -> Any:
     """Compile the supervisor graph with the given checkpointer."""
-    return build_supervisor_graph(llm, mcp_registry=mcp_registry).compile(checkpointer=checkpointer)
+    return build_supervisor_graph(
+        llm, mcp_registry=mcp_registry, vector_store=vector_store
+    ).compile(checkpointer=checkpointer)

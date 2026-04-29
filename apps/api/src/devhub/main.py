@@ -73,11 +73,30 @@ from devhub.domain.graphs.supervisor import compile_supervisor_graph  # noqa: E4
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    from devhub.adapters.persistence.database import get_session_factory
+    from devhub.adapters.persistence.repositories import HITLApprovalRepository
+    from devhub.application.use_cases.expire_approvals import ExpireApprovalsTask
+
     llm = AnthropicLLMClient(api_key=settings.anthropic_api_key)
     app.state.graph = compile_supervisor_graph(llm, MemorySaver())
     app.state.event_store = EventStore()
     logger.info("app.graph_ready")
+
+    # Start background task to expire approvals
+    async with get_session_factory()() as session:
+        approval_repo = HITLApprovalRepository(session)
+        expire_task = ExpireApprovalsTask(approval_repo, interval_seconds=60)
+        await expire_task.start()
+        app.state.expire_task = expire_task
+        logger.info("app.expire_approvals_task_started")
+
     yield
+
+    # Stop background task
+    if hasattr(app.state, "expire_task"):
+        await app.state.expire_task.stop()
+        logger.info("app.expire_approvals_task_stopped")
+
     logger.info("app.shutting_down")
 
 

@@ -130,3 +130,79 @@ class DocWriteResult(BaseModel):
     mode: DocMode
     draft: str
     diff: str | None
+
+
+# ── Code search value objects ─────────────────────────────────────────────────
+
+CodeSearchSource = Literal["github", "vector", "merged"]
+
+
+class CodeSearchHit(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    repo: str
+    path: str
+    start_line: int
+    end_line: int
+    snippet: str
+    score: float
+    source: CodeSearchSource
+
+
+class CodeSearchResult(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    query: str
+    hits: list[CodeSearchHit]
+    total: int
+
+
+# ── HITL value objects ────────────────────────────────────────────────────────
+
+ApprovalDecision = Literal["approve", "reject"]
+ApprovalStatus = Literal["pending", "approved", "rejected", "expired"]
+RiskLevel = Literal["low", "medium", "high"]
+
+
+class HITLRequest(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    approval_id: uuid.UUID
+    run_id: uuid.UUID
+    tool_call: ToolCall
+    summary: str
+    risk: RiskLevel
+    expires_at: datetime
+
+
+class ApprovalSubmission(BaseModel):
+    approval_id: uuid.UUID
+    decision: ApprovalDecision
+    patched_args: dict[str, Any] | None = None
+
+
+class HITLApproval(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: uuid.UUID
+    run_id: uuid.UUID
+    tool_call: dict[str, Any]
+    summary: str
+    risk: RiskLevel
+    status: ApprovalStatus
+    expires_at: datetime
+    created_at: datetime
+    resolved_at: datetime | None = None
+    decision: ApprovalDecision | None = None
+    patched_args: dict[str, Any] | None = None
+
+
+class AuditLogEntry(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: uuid.UUID
+    user_id: uuid.UUID
+    approval_id: uuid.UUID
+    decision: ApprovalDecision
+    patched_args: dict[str, Any] | None
+    timestamp: datetime

@@ -43,9 +43,12 @@ class StateEvent:
 
 @dataclass(frozen=True)
 class InterruptEvent:
-    request_id: str
-    prompt: str
-    tool_name: str
+    approval_id: str
+    run_id: str
+    tool_call: dict[str, Any]
+    summary: str
+    risk: str
+    expires_at: str
     type: Literal["interrupt"] = field(default="interrupt", init=False)
 
 

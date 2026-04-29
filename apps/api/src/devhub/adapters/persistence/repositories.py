@@ -123,3 +123,138 @@ def _run_to_domain(orm: OrmRun) -> Run:
         finished_at=orm.finished_at,
         error_data=orm.error_data,
     )
+
+
+class HITLApprovalRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def create(
+        self,
+        run_id: uuid.UUID,
+        tool_call: dict[str, object],
+        summary: str,
+        risk: str,
+        expires_at: object,
+    ) -> object:
+        from devhub.adapters.persistence.models import HITLApproval as OrmHITLApproval
+        from devhub.domain.models import HITLApproval
+
+        orm = OrmHITLApproval(
+            run_id=run_id,
+            tool_call=tool_call,
+            summary=summary,
+            risk=risk,
+            expires_at=expires_at,
+        )
+        self._session.add(orm)
+        await self._session.commit()
+        await self._session.refresh(orm)
+        return HITLApproval(
+            id=orm.id,
+            run_id=orm.run_id,
+            tool_call=orm.tool_call,
+            summary=orm.summary,
+            risk=orm.risk,  # type: ignore[arg-type]
+            status=orm.status,  # type: ignore[arg-type]
+            expires_at=orm.expires_at,
+            created_at=orm.created_at,
+            resolved_at=orm.resolved_at,
+            decision=orm.decision,  # type: ignore[arg-type]
+            patched_args=orm.patched_args,
+        )
+
+    async def get(self, approval_id: uuid.UUID) -> object | None:
+        from devhub.adapters.persistence.models import HITLApproval as OrmHITLApproval
+        from devhub.domain.models import HITLApproval
+
+        result = await self._session.execute(
+            select(OrmHITLApproval).where(OrmHITLApproval.id == approval_id)
+        )
+        orm = result.scalar_one_or_none()
+        if orm is None:
+            return None
+        return HITLApproval(
+            id=orm.id,
+            run_id=orm.run_id,
+            tool_call=orm.tool_call,
+            summary=orm.summary,
+            risk=orm.risk,  # type: ignore[arg-type]
+            status=orm.status,  # type: ignore[arg-type]
+            expires_at=orm.expires_at,
+            created_at=orm.created_at,
+            resolved_at=orm.resolved_at,
+            decision=orm.decision,  # type: ignore[arg-type]
+            patched_args=orm.patched_args,
+        )
+
+    async def resolve(
+        self,
+        approval_id: uuid.UUID,
+        decision: str,
+        patched_args: dict[str, object] | None = None,
+    ) -> None:
+        from datetime import UTC, datetime
+
+        from sqlalchemy import update
+
+        from devhub.adapters.persistence.models import HITLApproval as OrmHITLApproval
+
+        status = "approved" if decision == "approve" else "rejected"
+        await self._session.execute(
+            update(OrmHITLApproval)
+            .where(OrmHITLApproval.id == approval_id)
+            .values(
+                status=status,
+                decision=decision,
+                patched_args=patched_args,
+                resolved_at=datetime.now(UTC),
+            )
+        )
+        await self._session.commit()
+
+    async def expire_pending(self) -> list[uuid.UUID]:
+        from datetime import UTC, datetime
+
+        from sqlalchemy import update
+
+        from devhub.adapters.persistence.models import HITLApproval as OrmHITLApproval
+
+        now = datetime.now(UTC)
+        result = await self._session.execute(
+            select(OrmHITLApproval.id).where(
+                OrmHITLApproval.status == "pending", OrmHITLApproval.expires_at < now
+            )
+        )
+        expired_ids = [row[0] for row in result.all()]
+        if expired_ids:
+            await self._session.execute(
+                update(OrmHITLApproval)
+                .where(OrmHITLApproval.id.in_(expired_ids))
+                .values(status="expired", decision="reject", resolved_at=now)
+            )
+            await self._session.commit()
+        return expired_ids
+
+
+class AuditLogRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def log_approval(
+        self,
+        user_id: uuid.UUID,
+        approval_id: uuid.UUID,
+        decision: str,
+        patched_args: dict[str, object] | None,
+    ) -> None:
+        from devhub.adapters.persistence.models import AuditLog as OrmAuditLog
+
+        orm = OrmAuditLog(
+            user_id=user_id,
+            approval_id=approval_id,
+            decision=decision,
+            patched_args=patched_args,
+        )
+        self._session.add(orm)
+        await self._session.commit()

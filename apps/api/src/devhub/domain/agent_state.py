@@ -14,7 +14,9 @@ from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 from typing_extensions import TypedDict
 
-AgentName = Literal["supervisor", "echo_specialist", "pr_reviewer", "issue_triager", "doc_writer"]
+AgentName = Literal[
+    "supervisor", "echo_specialist", "pr_reviewer", "issue_triager", "doc_writer", "code_searcher"
+]
 
 
 @dataclass(frozen=True)

@@ -30,6 +30,7 @@ htmlcov/
 
 # Claude Code local settings (machine-specific)
 .claude/
+.slingshot/
 
 # Python build artifacts
 apps/api/dist/

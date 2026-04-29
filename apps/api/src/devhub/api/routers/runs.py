@@ -11,9 +11,23 @@ from sse_starlette.sse import EventSourceResponse
 
 from devhub.adapters.streaming.event_store import EventStore
 from devhub.adapters.streaming.sse import run_event_stream
-from devhub.api.deps import CurrentUser, get_event_store, get_graph, get_run_repo, get_thread_repo
+from devhub.api.deps import (
+    CurrentUser,
+    get_audit_log_repo,
+    get_event_store,
+    get_graph,
+    get_hitl_approval_repo,
+    get_run_repo,
+    get_thread_repo,
+)
 from devhub.core.errors import NotFoundError
-from devhub.domain.ports import IRunRepository, IThreadRepository
+from devhub.domain.models import ApprovalSubmission
+from devhub.domain.ports import (
+    IAuditLogRepository,
+    IHITLApprovalRepository,
+    IRunRepository,
+    IThreadRepository,
+)
 
 router = APIRouter(tags=["runs"])
 
@@ -137,3 +151,38 @@ async def _run_and_publish(
             await run_repo.mark_completed(run_id)
 
         await event_store.publish(run_id, DoneEvent(run_id=run_id, final_message=final_text))
+
+
+@router.post("/runs/{run_id}/approvals", status_code=200)
+async def submit_approval(
+    run_id: uuid.UUID,
+    body: ApprovalSubmission,
+    user: CurrentUser,
+    approval_repo: Annotated[IHITLApprovalRepository, Depends(get_hitl_approval_repo)],
+    audit_repo: Annotated[IAuditLogRepository, Depends(get_audit_log_repo)],
+    graph: Annotated[Any, Depends(get_graph)],
+) -> dict[str, str]:
+    """Submit approval/rejection for a pending HITL interrupt."""
+    user_id = uuid.UUID(str(user["sub"]))
+
+    # Get the approval
+    approval = await approval_repo.get(body.approval_id)
+    if approval is None:
+        raise NotFoundError("Approval not found")
+
+    # Verify it belongs to this run
+    from devhub.domain.models import HITLApproval
+
+    if isinstance(approval, HITLApproval) and approval.run_id != run_id:
+        raise NotFoundError("Approval does not belong to this run")
+
+    # Resolve the approval
+    await approval_repo.resolve(body.approval_id, body.decision, body.patched_args)
+
+    # Log to audit
+    await audit_repo.log_approval(user_id, body.approval_id, body.decision, body.patched_args)
+
+    # Resume the graph (LangGraph will handle the interrupt continuation)
+    # This is a placeholder - actual resume logic will be in the graph interrupt handler
+
+    return {"status": "ok", "decision": body.decision}

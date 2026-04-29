@@ -13,6 +13,7 @@ from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.tools import BaseTool
 
 from devhub.domain.models import (
+    CodeSearchHit,
     MCPServerConfig,
     MCPServerInfo,
     Run,
@@ -47,6 +48,40 @@ class IRunRepository(Protocol):
 
 
 @runtime_checkable
+class IHITLApprovalRepository(Protocol):
+    async def create(
+        self,
+        run_id: uuid.UUID,
+        tool_call: dict[str, object],
+        summary: str,
+        risk: str,
+        expires_at: object,
+    ) -> object: ...
+
+    async def get(self, approval_id: uuid.UUID) -> object | None: ...
+
+    async def resolve(
+        self,
+        approval_id: uuid.UUID,
+        decision: str,
+        patched_args: dict[str, object] | None = None,
+    ) -> None: ...
+
+    async def expire_pending(self) -> list[uuid.UUID]: ...
+
+
+@runtime_checkable
+class IAuditLogRepository(Protocol):
+    async def log_approval(
+        self,
+        user_id: uuid.UUID,
+        approval_id: uuid.UUID,
+        decision: str,
+        patched_args: dict[str, object] | None,
+    ) -> None: ...
+
+
+@runtime_checkable
 class IMCPRegistry(Protocol):
     async def connect(self, config: MCPServerConfig) -> None: ...
 
@@ -75,3 +110,10 @@ class ILLMPort(Protocol):
         *,
         system: str | None = None,
     ) -> AIMessage: ...
+
+
+@runtime_checkable
+class IVectorStore(Protocol):
+    """Vector similarity search over embedded code chunks."""
+
+    async def search(self, query: str, *, k: int = 10) -> list[CodeSearchHit]: ...

@@ -11,12 +11,20 @@ from devhub.adapters.cache.redis import get_redis
 from devhub.adapters.llm.client import AnthropicLLMClient
 from devhub.adapters.mcp.registry import MCPRegistry
 from devhub.adapters.persistence.database import get_db
-from devhub.adapters.persistence.repositories import RunRepository, ThreadRepository, UserRepository
+from devhub.adapters.persistence.repositories import (
+    AuditLogRepository,
+    HITLApprovalRepository,
+    RunRepository,
+    ThreadRepository,
+    UserRepository,
+)
 from devhub.adapters.streaming.event_store import EventStore
 from devhub.application.use_cases.list_threads import ListThreadsUseCase
 from devhub.core.errors import AuthError
 from devhub.core.settings import get_settings
 from devhub.domain.ports import (
+    IAuditLogRepository,
+    IHITLApprovalRepository,
     ILLMClient,
     IMCPRegistry,
     IRunRepository,
@@ -51,6 +59,16 @@ def get_thread_repo(session: Annotated[AsyncSession, Depends(get_db)]) -> IThrea
 
 def get_run_repo(session: Annotated[AsyncSession, Depends(get_db)]) -> IRunRepository:
     return RunRepository(session)
+
+
+def get_hitl_approval_repo(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> IHITLApprovalRepository:
+    return HITLApprovalRepository(session)
+
+
+def get_audit_log_repo(session: Annotated[AsyncSession, Depends(get_db)]) -> IAuditLogRepository:
+    return AuditLogRepository(session)
 
 
 # ── Infrastructure clients ────────────────────────────────────────────────────
@@ -88,10 +106,12 @@ def get_list_threads_use_case(
 # ── Re-export redis for health checks ─────────────────────────────────────────
 __all__ = [
     "CurrentUser",
+    "get_audit_log_repo",
     "get_current_user",
     "get_db",
     "get_event_store",
     "get_graph",
+    "get_hitl_approval_repo",
     "get_llm_client",
     "get_list_threads_use_case",
     "get_mcp_registry",

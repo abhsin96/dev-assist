@@ -50,3 +50,32 @@ CREATE TABLE IF NOT EXISTS runs (
     error_data  JSONB
 );
 CREATE INDEX IF NOT EXISTS runs_thread_id_idx ON runs(thread_id);
+
+-- HITL approvals table (DEVHUB-015: HITL interrupts)
+CREATE TABLE IF NOT EXISTS hitl_approvals (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    run_id      UUID NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+    tool_call   JSONB NOT NULL,
+    summary     TEXT NOT NULL,
+    risk        TEXT NOT NULL DEFAULT 'medium',
+    status      TEXT NOT NULL DEFAULT 'pending',
+    expires_at  TIMESTAMPTZ NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    resolved_at TIMESTAMPTZ,
+    decision    TEXT,
+    patched_args JSONB
+);
+CREATE INDEX IF NOT EXISTS hitl_approvals_run_id_idx ON hitl_approvals(run_id);
+CREATE INDEX IF NOT EXISTS hitl_approvals_status_idx ON hitl_approvals(status);
+
+-- Audit log table (DEVHUB-015: HITL interrupts)
+CREATE TABLE IF NOT EXISTS audit_log (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    approval_id UUID NOT NULL REFERENCES hitl_approvals(id) ON DELETE CASCADE,
+    decision    TEXT NOT NULL,
+    patched_args JSONB,
+    timestamp   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS audit_log_user_id_idx ON audit_log(user_id);
+CREATE INDEX IF NOT EXISTS audit_log_approval_id_idx ON audit_log(approval_id);
