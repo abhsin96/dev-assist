@@ -114,3 +114,19 @@ class IssueTriageResult(BaseModel):
     repo: str
     triaged: list[IssueTriage]
     cache_hits: int
+
+
+# ── Doc writer value objects ──────────────────────────────────────────────────
+
+DocMode = Literal["greenfield", "update", "docstring"]
+
+
+class DocWriteResult(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    owner: str
+    repo: str
+    target_path: str
+    mode: DocMode
+    draft: str
+    diff: str | None
