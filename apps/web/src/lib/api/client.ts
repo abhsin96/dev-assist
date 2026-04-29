@@ -2,8 +2,13 @@ import { parseProblem } from "@/lib/errors";
 
 /**
  * Base API client configuration
+ * For client-side calls, we use Next.js API routes which handle backend auth
+ * For server-side calls, use the backend URL directly
  */
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE_URL =
+  typeof window !== "undefined"
+    ? ""
+    : process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 /**
  * Request options for API calls

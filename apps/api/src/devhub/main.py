@@ -58,6 +58,7 @@ from collections.abc import AsyncIterator  # noqa: E402
 from contextlib import asynccontextmanager  # noqa: E402
 
 from fastapi import FastAPI  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from langgraph.checkpoint.memory import MemorySaver  # noqa: E402
 
 from devhub.adapters.llm.client import AnthropicLLMClient  # noqa: E402
@@ -115,13 +116,27 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# CORS middleware - allow frontend to access API from different port
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",  # Next.js dev server
+        "http://localhost:3001",  # Alternative dev port
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods
+    allow_headers=["*"],  # Allow all headers including X-Request-Id
+)
+
 app.add_middleware(RequestIdMiddleware)
 register_error_handlers(app)
 
-app.include_router(auth_router)
-app.include_router(health_router)
-app.include_router(threads_router)
-app.include_router(runs_router)
+app.include_router(auth_router, prefix="/api")
+app.include_router(health_router, prefix="/api")
+app.include_router(threads_router, prefix="/api")
+app.include_router(runs_router, prefix="/api")
 
 logger.info(
     "app.started",
