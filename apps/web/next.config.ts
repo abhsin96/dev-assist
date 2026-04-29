@@ -2,7 +2,8 @@ import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Enable React Compiler for better performance
+  reactCompiler: true,
 };
 
 export default withSentryConfig(nextConfig, {
