@@ -45,10 +45,9 @@ databases:
     databaseName: devhub
     plan: starter
     region: oregon
-    postgresMajorVersion: 16
+    postgresMajorVersion: "16"
 
   # Redis Cache
   - name: devhub-redis
     plan: starter
     region: oregon
-    maxmemoryPolicy: allkeys-lru
