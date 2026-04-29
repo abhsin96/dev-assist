@@ -21,6 +21,15 @@ export type StreamPart =
   | { type: "text-delta"; textDelta: string }
   | { type: "tool-call"; toolCallId: string; toolName: string; args: unknown }
   | { type: "tool-result"; toolCallId: string; result: unknown }
+  | {
+      type: "interrupt";
+      approvalId: string;
+      summary: string;
+      risk: string;
+      expiresAt: string;
+      toolName: string;
+      toolArgs: unknown;
+    }
   | { type: "error"; error: Error }
   | {
       type: "finish";
@@ -120,6 +129,19 @@ export function convertToStreamPart(event: SSEEvent): StreamPart | null {
           error: new Error(data.message),
         };
 
+      case "interrupt":
+        return {
+          type: "interrupt",
+          approvalId: data.approval_id || "",
+          summary: data.summary || "",
+          risk: data.risk || "medium",
+          expiresAt:
+            data.expires_at ||
+            new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+          toolName: data.tool_name || "",
+          toolArgs: data.tool_args || {},
+        };
+
       case "done":
         return {
           type: "finish",
@@ -129,7 +151,6 @@ export function convertToStreamPart(event: SSEEvent): StreamPart | null {
 
       // Custom event types not in AI SDK standard
       case "state":
-      case "interrupt":
         // These will be handled separately in the UI
         return null;
 

@@ -8,7 +8,9 @@ import { MessageSquare, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StreamingMessage } from "@/components/messages/streaming-message";
 import { JumpToLatest } from "@/components/messages/jump-to-latest";
+import { HITLApprovalCard, HITLApprovalData } from "@/components/approvals";
 import { useStreamingMessage } from "@/features/threads/hooks/use-streaming-message";
+import { useHITLApprovals } from "@/features/threads/hooks/use-hitl-approvals";
 import { useAutoScroll } from "@/hooks/use-auto-scroll";
 import { toast } from "sonner";
 
@@ -27,6 +29,7 @@ interface ThreadDetailProps {
 export function ThreadDetail({ threadId, initialThread }: ThreadDetailProps) {
   const router = useRouter();
   const [inputValue, setInputValue] = useState("");
+  const [currentRunId, setCurrentRunId] = useState<string | null>(null);
 
   // Use React Query for client-side data fetching and caching
   const {
@@ -61,6 +64,36 @@ export function ThreadDetail({ threadId, initialThread }: ThreadDetailProps) {
     },
   });
 
+  // HITL approvals hook
+  const { addApproval, handleApprove, handleReject, pendingApprovals } =
+    useHITLApprovals({
+      runId: currentRunId || "",
+      onApprovalResolved: (approvalId, decision) => {
+        console.log(`Approval ${approvalId} ${decision}`);
+      },
+    });
+
+  // Extract interrupt events from parts and add to approvals
+  useEffect(() => {
+    parts.forEach((part) => {
+      if (part.type === "interrupt" && part.interruptData) {
+        const approval: HITLApprovalData = {
+          approvalId: part.interruptData.approvalId,
+          summary: part.interruptData.summary,
+          risk: part.interruptData.risk as
+            | "low"
+            | "medium"
+            | "high"
+            | "critical",
+          toolName: part.toolName || "unknown",
+          toolArgs: part.toolArgs || {},
+          expiresAt: part.interruptData.expiresAt,
+        };
+        addApproval(approval);
+      }
+    });
+  }, [parts, addApproval]);
+
   // Auto-scroll hook
   const { containerRef, showJumpToLatest, scrollToBottom } = useAutoScroll({
     isStreaming,
@@ -83,6 +116,9 @@ export function ThreadDetail({ threadId, initialThread }: ThreadDetailProps) {
         thread_id: threadId,
         message: inputValue.trim(),
       });
+
+      // Store the run ID for approval submissions
+      setCurrentRunId(response.run_id);
 
       // Clear input
       setInputValue("");
@@ -183,11 +219,36 @@ export function ThreadDetail({ threadId, initialThread }: ThreadDetailProps) {
           </div>
         ) : (
           <div className="space-y-4 max-w-4xl mx-auto">
-            <StreamingMessage
-              parts={parts}
-              isStreaming={isStreaming}
-              role="assistant"
-            />
+            {/* Render message parts */}
+            {parts.map((part, index) => {
+              // Skip interrupt parts as they are rendered separately
+              if (part.type === "interrupt") {
+                return null;
+              }
+              return (
+                <StreamingMessage
+                  key={index}
+                  parts={[part]}
+                  isStreaming={isStreaming && index === parts.length - 1}
+                  role="assistant"
+                />
+              );
+            })}
+
+            {/* Render HITL approval cards inline */}
+            {pendingApprovals.map((approval) => (
+              <HITLApprovalCard
+                key={approval.approvalId}
+                data={approval}
+                onApprove={handleApprove}
+                onReject={handleReject}
+                onRetry={() => {
+                  // Retry by creating a new run with the same message
+                  toast.info("Retry functionality coming soon");
+                }}
+              />
+            ))}
+
             {streamError && (
               <div className="flex items-center justify-center gap-2">
                 <p className="text-sm text-red-600 dark:text-red-400">

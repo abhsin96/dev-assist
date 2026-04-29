@@ -139,6 +139,25 @@ export function useStreamingMessage({
               ]);
               break;
 
+            case "interrupt":
+              // Handle HITL interrupt events
+              setParts((prev) => [
+                ...prev,
+                {
+                  type: "interrupt",
+                  content: "",
+                  interruptData: {
+                    approvalId: part.approvalId,
+                    summary: part.summary,
+                    risk: part.risk,
+                    expiresAt: part.expiresAt,
+                  },
+                  toolName: part.toolName,
+                  toolArgs: part.toolArgs as Record<string, unknown>,
+                },
+              ]);
+              break;
+
             case "error":
               const errorMessage =
                 part.error instanceof Error

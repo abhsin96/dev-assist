@@ -145,26 +145,9 @@ function MessagePartRenderer({ part }: { part: MessagePart }) {
       );
 
     case "interrupt":
-      return (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-3">
-          <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5" />
-          <div className="flex-1 min-w-0">
-            <div className="font-medium text-sm text-amber-900 dark:text-amber-100">
-              Approval Required
-            </div>
-            {part.interruptData && (
-              <div className="mt-1 space-y-1">
-                <div className="text-xs text-amber-700 dark:text-amber-300">
-                  {part.interruptData.summary}
-                </div>
-                <div className="text-xs text-amber-600 dark:text-amber-400">
-                  Risk: {part.interruptData.risk}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      );
+      // Interrupt events are now handled by HITLApprovalCard component
+      // This is a placeholder for backward compatibility
+      return null;
 
     case "state":
       return (
