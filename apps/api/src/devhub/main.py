@@ -94,44 +94,44 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.mcp_registry = mcp_registry
 
     # Load and connect to enabled MCP servers from database
-    session = get_session_factory()()
-    mcp_repo = MCPServerRepository(session)
-    servers = await mcp_repo.list_all()
-    for server in servers:
-        if server.enabled:
-            try:
-                config = MCPServerConfig(
-                    server_id=server.server_id,
-                    url=server.url,
-                    transport="streamable-http",
-                    enabled=True,
-                )
-                await mcp_registry.connect(config)
-                await mcp_repo.update_connection_status(server.server_id, connected=True)
-                logger.info("mcp.server_connected_on_startup", server_id=server.server_id)
-            except Exception as exc:
-                logger.error(
-                    "mcp.server_connection_failed_on_startup",
-                    server_id=server.server_id,
-                    error=str(exc),
-                )
-                await mcp_repo.update_connection_status(
-                    server.server_id,
-                    connected=False,
-                    error_code="CONNECTION_FAILED",
-                    error_message=str(exc),
-                )
-    await session.commit()
-    await session.close()
+    async with get_session_factory()() as session:
+        mcp_repo = MCPServerRepository(session)
+        servers = await mcp_repo.list_all()
+        for server in servers:
+            if server.enabled:
+                try:
+                    config = MCPServerConfig(
+                        server_id=server.server_id,
+                        url=server.url,
+                        transport="streamable-http",
+                        enabled=True,
+                    )
+                    await mcp_registry.connect(config)
+                    await mcp_repo.update_connection_status(server.server_id, connected=True)
+                    logger.info("mcp.server_connected_on_startup", server_id=server.server_id)
+                except Exception as exc:
+                    logger.error(
+                        "mcp.server_connection_failed_on_startup",
+                        server_id=server.server_id,
+                        error=str(exc),
+                    )
+                    await mcp_repo.update_connection_status(
+                        server.server_id,
+                        connected=False,
+                        error_code="CONNECTION_FAILED",
+                        error_message=str(exc),
+                    )
+        await session.commit()
 
     logger.info("app.graph_ready")
 
     # Create a session for the background task that will live for the app lifetime
-    session = get_session_factory()()
-    app.state.background_session = session
+    # Note: This session is managed manually and closed in the shutdown phase
+    background_session = get_session_factory()()
+    app.state.background_session = background_session
 
     # Start background task to expire approvals
-    approval_repo = HITLApprovalRepository(session)
+    approval_repo = HITLApprovalRepository(background_session)
     expire_task = ExpireApprovalsTask(approval_repo, interval_seconds=60)
     await expire_task.start()
     app.state.expire_task = expire_task
@@ -149,7 +149,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await app.state.expire_task.stop()
         logger.info("app.expire_approvals_task_stopped")
 
-    # Close the background session
+    # Close the background session using async context manager protocol
     if hasattr(app.state, "background_session"):
         await app.state.background_session.close()
         logger.info("app.background_session_closed")

@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from devhub.adapters.auth.jwt import decode_api_token
 from devhub.adapters.cache.redis import get_redis
-from devhub.adapters.llm.client import AnthropicLLMClient
+from devhub.adapters.llm.client import AnthropicLLMClient, OpenAILLMClient
 from devhub.adapters.mcp.registry import MCPRegistry
 from devhub.adapters.persistence.database import get_db
 from devhub.adapters.persistence.repositories import (
@@ -105,7 +105,18 @@ def get_mcp_registry() -> IMCPRegistry:
 
 def get_llm_client() -> ILLMClient:
     settings = get_settings()
-    return AnthropicLLMClient(api_key=settings.anthropic_api_key)
+    provider = settings.llm_provider.lower()
+
+    if provider == "openai":
+        if not settings.openai_api_key:
+            raise ValueError("OPENAI_API_KEY is required when LLM_PROVIDER=openai")
+        return OpenAILLMClient(api_key=settings.openai_api_key)
+    elif provider == "anthropic":
+        if not settings.anthropic_api_key:
+            raise ValueError("ANTHROPIC_API_KEY is required when LLM_PROVIDER=anthropic")
+        return AnthropicLLMClient(api_key=settings.anthropic_api_key)
+    else:
+        raise ValueError(f"Unsupported LLM provider: {provider}. Use 'anthropic' or 'openai'.")
 
 
 # ── App-state singletons (graph + event store) ────────────────────────────────
@@ -116,7 +127,8 @@ def get_graph(request: Request) -> Any:
 
 
 def get_event_store(request: Request) -> EventStore:
-    return request.app.state.event_store  # type: ignore[no-any-return]
+    store: EventStore = request.app.state.event_store
+    return store
 
 
 # ── Use-case factories ────────────────────────────────────────────────────────

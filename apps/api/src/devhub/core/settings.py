@@ -30,7 +30,9 @@ class Settings(BaseSettings):
     github_token: str = Field(default="")
 
     # LLM
+    llm_provider: str = Field(default="anthropic")  # "anthropic" or "openai"
     anthropic_api_key: str = Field(default="")
+    openai_api_key: str = Field(default="")
 
     # LangSmith
     langchain_tracing_v2: bool = False

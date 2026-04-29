@@ -28,7 +28,9 @@ interface ThreadListItemProps {
 
 export function ThreadListItem({ thread, isActive }: ThreadListItemProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [editedTitle, setEditedTitle] = useState(thread.title || "New conversation");
+  const [editedTitle, setEditedTitle] = useState(
+    thread.title || "New conversation",
+  );
   const { updateThread, deleteThread } = useThreadMutations();
 
   const handleDoubleClick = () => {
@@ -57,9 +59,15 @@ export function ThreadListItem({ thread, isActive }: ThreadListItemProps) {
     await deleteThread(thread.id);
   };
 
-  const timeAgo = formatDistanceToNow(new Date(thread.updatedAt), {
-    addSuffix: true,
-  });
+  // Safely parse the date with fallback
+  const updatedDate = thread.updatedAt
+    ? new Date(thread.updatedAt)
+    : new Date();
+  const isValidDate = !isNaN(updatedDate.getTime());
+
+  const timeAgo = isValidDate
+    ? formatDistanceToNow(updatedDate, { addSuffix: true })
+    : "recently";
 
   return (
     <div

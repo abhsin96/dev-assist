@@ -7,7 +7,7 @@ interface ThreadPageProps {
   };
 }
 
-// Server component that fetches initial thread data
+// Server component that validates the thread ID and renders the client component
 export default async function ThreadPage({ params }: ThreadPageProps) {
   const { id } = params;
 
@@ -18,25 +18,7 @@ export default async function ThreadPage({ params }: ThreadPageProps) {
     notFound();
   }
 
-  // Server-side fetch for initial data (SSR)
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-  let thread = null;
-
-  try {
-    const response = await fetch(`${apiUrl}/api/threads/${id}`, {
-      cache: "no-store", // Always fetch fresh data
-    });
-
-    if (response.ok) {
-      thread = await response.json();
-    } else if (response.status === 404) {
-      notFound();
-    }
-  } catch (error) {
-    console.error("Failed to fetch thread:", error);
-    // Continue to render - client component will handle error state
-  }
-
-  // Hand off to client component for streaming and interactivity
-  return <ThreadDetail threadId={id} initialThread={thread} />;
+  // Let the client component handle data fetching with proper authentication
+  // The ThreadDetail component uses React Query and the authenticated API client
+  return <ThreadDetail threadId={id} initialThread={null} />;
 }
