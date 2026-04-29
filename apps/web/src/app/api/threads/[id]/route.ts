@@ -17,7 +17,7 @@ export async function GET(
 
   try {
     const token = await mintApiToken(session);
-    const response = await fetch(`${API_BASE_URL}/threads/${params.id}`, {
+    const response = await fetch(`${API_BASE_URL}/api/threads/${params.id}`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -58,7 +58,7 @@ export async function PATCH(
   try {
     const body = await request.json();
     const token = await mintApiToken(session);
-    const response = await fetch(`${API_BASE_URL}/threads/${params.id}`, {
+    const response = await fetch(`${API_BASE_URL}/api/threads/${params.id}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -101,7 +101,7 @@ export async function DELETE(
 
   try {
     const token = await mintApiToken(session);
-    const response = await fetch(`${API_BASE_URL}/threads/${params.id}`, {
+    const response = await fetch(`${API_BASE_URL}/api/threads/${params.id}`, {
       method: "DELETE",
       headers: {
         Authorization: `Bearer ${token}`,

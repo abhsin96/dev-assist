@@ -13,7 +13,7 @@ export async function GET() {
 
   try {
     const token = await mintApiToken(session);
-    const response = await fetch(`${API_BASE_URL}/threads`, {
+    const response = await fetch(`${API_BASE_URL}/api/threads`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const token = await mintApiToken(session);
-    const response = await fetch(`${API_BASE_URL}/threads`, {
+    const response = await fetch(`${API_BASE_URL}/api/threads`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

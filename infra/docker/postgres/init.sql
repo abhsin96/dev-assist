@@ -96,3 +96,28 @@ CREATE TABLE IF NOT EXISTS mcp_servers (
 );
 CREATE INDEX IF NOT EXISTS mcp_servers_enabled_idx ON mcp_servers(enabled);
 CREATE INDEX IF NOT EXISTS mcp_servers_server_id_idx ON mcp_servers(server_id);
+
+-- OAuth connections table (DEVHUB-025: OAuth connector flow)
+CREATE TABLE IF NOT EXISTS oauth_connections (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id                 UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider                TEXT NOT NULL,
+    encrypted_access_token  BYTEA NOT NULL,
+    encrypted_refresh_token BYTEA,
+    scope                   TEXT NOT NULL DEFAULT '',
+    token_expires_at        TIMESTAMPTZ,
+    connected_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    revoked_at              TIMESTAMPTZ,
+    CONSTRAINT uq_oauth_conn_user_provider UNIQUE (user_id, provider)
+);
+CREATE INDEX IF NOT EXISTS oauth_connections_user_id_idx ON oauth_connections(user_id);
+
+-- OAuth audit log (DEVHUB-025)
+CREATE TABLE IF NOT EXISTS oauth_audit_log (
+    id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id   UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider  TEXT NOT NULL,
+    event     TEXT NOT NULL,
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS oauth_audit_log_user_id_idx ON oauth_audit_log(user_id);
