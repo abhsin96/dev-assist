@@ -178,12 +178,12 @@ export function useStreamingMessage({
               break;
 
             case "finish":
-              // Safety net: if no text was streamed but final_message exists, show it
-              if (part.finalMessage && currentTextPartRef.current === "") {
-                setParts((prev) => [
-                  ...prev,
-                  { type: "text", content: part.finalMessage! },
-                ]);
+              // Always use finalMessage as fallback if no text parts were accumulated
+              if (part.finalMessage) {
+                setParts((prev) => {
+                  const hasText = prev.some((p) => p.type === "text" && p.content);
+                  return hasText ? prev : [...prev, { type: "text", content: part.finalMessage! }];
+                });
               }
               setIsStreaming(false);
               setCurrentAgent(null);

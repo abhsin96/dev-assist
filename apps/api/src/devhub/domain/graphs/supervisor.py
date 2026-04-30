@@ -60,7 +60,7 @@ def _make_supervisor(llm: ILLMPort) -> Callable[[AgentState], Any]:
                 system=_SUPERVISOR_PROMPT,
             )
             content = response.content
-            route = _parse_route(content if isinstance(content, str) else "")
+            route, answer = _parse_route(content if isinstance(content, str) else "")
         except Exception as exc:
             error = AgentErrorRecord(
                 code="AGENT_ERROR",
@@ -79,7 +79,10 @@ def _make_supervisor(llm: ILLMPort) -> Callable[[AgentState], Any]:
             )
 
         if route == _ROUTE_DONE:
-            return Command(goto=END, update={"current_agent": None})
+            update: dict[str, Any] = {"current_agent": None}
+            if answer:
+                update["messages"] = [AIMessage(content=answer)]
+            return Command(goto=END, update=update)
 
         return Command(
             goto=route,
@@ -117,11 +120,11 @@ def _make_echo_specialist(llm: ILLMPort) -> Callable[[AgentState], Any]:
     return echo_specialist
 
 
-def _parse_route(content: str) -> str:
-    """Extract route from supervisor LLM response.
+def _parse_route(content: str) -> tuple[str, str | None]:
+    """Extract route (and optional direct answer) from supervisor LLM response.
 
-    Accepts a JSON line ``{"route": "...", "reasoning": "..."}`` or falls back
-    to ``echo_specialist`` if parsing fails or the route is unknown.
+    Returns ``(route, answer)`` where ``answer`` is set when the supervisor
+    responds directly rather than delegating to a specialist.
     """
     try:
         start = content.find("{")
@@ -129,13 +132,14 @@ def _parse_route(content: str) -> str:
         if start != -1 and end > start:
             data = json.loads(content[start:end])
             route = str(data.get("route", _ROUTE_ECHO))
+            answer: str | None = data.get("answer") or None
             if route.upper() == "DONE":
-                return _ROUTE_DONE
+                return _ROUTE_DONE, answer
             if route in _VALID_SPECIALIST_ROUTES:
-                return route
+                return route, None
     except (json.JSONDecodeError, KeyError):
         pass
-    return _ROUTE_ECHO
+    return _ROUTE_ECHO, None
 
 
 def build_supervisor_graph(
