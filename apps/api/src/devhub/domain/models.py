@@ -64,6 +64,7 @@ class MCPServerInfo(BaseModel):
     enabled: bool
     tool_count: int
     tools: list[str] = []
+    config: dict[str, Any] | None = None
     error_code: str | None = None
     error_message: str | None = None
     last_connected_at: datetime | None = None

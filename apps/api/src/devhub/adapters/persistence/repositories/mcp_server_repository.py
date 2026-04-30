@@ -110,6 +110,7 @@ class MCPServerRepository:
             enabled=orm_server.enabled,
             tool_count=0,  # Will be populated by registry
             tools=[],  # Will be populated by registry
+            config=orm_server.config,
             error_code=orm_server.error_code,
             error_message=orm_server.error_message,
             last_connected_at=orm_server.last_connected_at,

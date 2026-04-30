@@ -30,11 +30,13 @@ export type StreamPart =
       toolName: string;
       toolArgs: unknown;
     }
+  | { type: "state"; agent: string | null }
   | { type: "error"; error: Error }
   | {
       type: "finish";
       finishReason: string;
       usage: { promptTokens: number; completionTokens: number };
+      finalMessage?: string;
     };
 
 export interface SSEEvent {
@@ -147,12 +149,14 @@ export function convertToStreamPart(event: SSEEvent): StreamPart | null {
           type: "finish",
           finishReason: "stop",
           usage: { promptTokens: 0, completionTokens: 0 },
+          finalMessage: data.final_message as string | undefined,
         };
 
-      // Custom event types not in AI SDK standard
       case "state":
-        // These will be handled separately in the UI
-        return null;
+        return {
+          type: "state",
+          agent: data.current_agent ?? null,
+        };
 
       default:
         console.warn(`Unknown SSE event type: ${event.event}`);
@@ -172,7 +176,8 @@ export async function createSSETransport(
 ): Promise<AsyncIterable<StreamPart>> {
   const { url, runId, fromSeq = 0, signal, onError, onReconnect } = options;
 
-  const streamUrl = new URL(url);
+  const base = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+  const streamUrl = new URL(url, base);
   streamUrl.searchParams.set("run_id", runId);
   if (fromSeq > 0) {
     streamUrl.searchParams.set("from", fromSeq.toString());

@@ -13,6 +13,7 @@ from devhub.adapters.streaming.event_store import EventStore
 from devhub.adapters.streaming.sse import run_event_stream
 from devhub.api.deps import (
     CurrentUser,
+    CurrentUserId,
     get_audit_log_repo,
     get_event_store,
     get_graph,
@@ -45,13 +46,12 @@ async def start_run(
     thread_id: uuid.UUID,
     body: StartRunRequest,
     background_tasks: BackgroundTasks,
-    user: CurrentUser,
+    user_id: CurrentUserId,
     run_repo: Annotated[IRunRepository, Depends(get_run_repo)],
     thread_repo: Annotated[IThreadRepository, Depends(get_thread_repo)],
     graph: Annotated[Any, Depends(get_graph)],
     event_store: Annotated[EventStore, Depends(get_event_store)],
 ) -> StartRunResponse:
-    user_id = uuid.UUID(str(user["sub"]))
     thread = await thread_repo.get(thread_id, user_id)
     if thread is None:
         raise NotFoundError("Thread not found")
@@ -97,7 +97,16 @@ async def _run_and_publish(
 
     from devhub.adapters.persistence.database import get_session_factory
     from devhub.adapters.persistence.repositories import RunRepository
-    from devhub.application.use_cases.run_events import DoneEvent, ErrorEvent, TokenEvent
+    from devhub.application.use_cases.run_events import (
+        DoneEvent,
+        ErrorEvent,
+        StateEvent,
+        TokenEvent,
+    )
+
+    _SPECIALIST_NODES = frozenset(
+        {"pr_reviewer", "issue_triager", "doc_writer", "code_searcher", "echo_specialist"}
+    )
 
     config = {"configurable": {"thread_id": str(thread_id)}}
     final_text = ""
@@ -113,11 +122,10 @@ async def _run_and_publish(
             ):
                 kind = event.get("event", "")
 
-                if kind == "on_chat_model_stream":
-                    chunk = event.get("data", {}).get("chunk")
-                    if chunk and hasattr(chunk, "content") and chunk.content:
-                        await event_store.publish(run_id, TokenEvent(text=str(chunk.content)))
-                        final_text += str(chunk.content)
+                if kind == "on_chain_start":
+                    node = event.get("metadata", {}).get("langgraph_node", "")
+                    if node in _SPECIALIST_NODES:
+                        await event_store.publish(run_id, StateEvent(current_agent=node, plan=[]))
 
                 elif kind == "on_chain_end":
                     output = event.get("data", {}).get("output", {})
@@ -145,6 +153,10 @@ async def _run_and_publish(
             await run_repo.mark_failed(run_id, {"code": "INTERNAL_ERROR", "message": str(exc)})
             return
 
+        # Publish the final formatted message so the frontend can display it.
+        if final_text:
+            await event_store.publish(run_id, TokenEvent(text=final_text))
+
         if error_seen:
             await run_repo.mark_failed(run_id, {"code": "AGENT_ERROR", "message": "Agent error"})
         else:
@@ -157,13 +169,12 @@ async def _run_and_publish(
 async def submit_approval(
     run_id: uuid.UUID,
     body: ApprovalSubmission,
-    user: CurrentUser,
+    user_id: CurrentUserId,
     approval_repo: Annotated[IHITLApprovalRepository, Depends(get_hitl_approval_repo)],
     audit_repo: Annotated[IAuditLogRepository, Depends(get_audit_log_repo)],
     graph: Annotated[Any, Depends(get_graph)],
 ) -> dict[str, str]:
     """Submit approval/rejection for a pending HITL interrupt."""
-    user_id = uuid.UUID(str(user["sub"]))
 
     # Get the approval
     approval = await approval_repo.get(body.approval_id)

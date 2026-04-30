@@ -2,14 +2,14 @@ import { notFound } from "next/navigation";
 import { ThreadDetail } from "@/features/threads/components/thread-detail";
 
 interface ThreadPageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 // Server component that validates the thread ID and renders the client component
 export default async function ThreadPage({ params }: ThreadPageProps) {
-  const { id } = params;
+  const { id } = await params;
 
   // Validate UUID format
   const uuidRegex =

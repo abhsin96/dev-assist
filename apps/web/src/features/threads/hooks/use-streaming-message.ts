@@ -14,6 +14,7 @@ export interface UseStreamingMessageOptions {
 export interface UseStreamingMessageReturn {
   parts: MessagePart[];
   isStreaming: boolean;
+  currentAgent: string | null;
   error: Error | null;
   startStream: (runId: string) => Promise<void>;
   cancelStream: () => void;
@@ -29,6 +30,7 @@ export function useStreamingMessage({
 }: UseStreamingMessageOptions): UseStreamingMessageReturn {
   const [parts, setParts] = useState<MessagePart[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [currentAgent, setCurrentAgent] = useState<string | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastRunIdRef = useRef<string | null>(null);
@@ -52,6 +54,7 @@ export function useStreamingMessage({
       setParts([]);
       setError(null);
       setIsStreaming(true);
+      setCurrentAgent(null);
       currentTextPartRef.current = "";
       lastRunIdRef.current = runId;
 
@@ -89,21 +92,14 @@ export function useStreamingMessage({
             case "text-delta":
               currentTextPartRef.current += part.textDelta;
               setParts((prev) => {
-                const newParts = [...prev];
-                const lastPart = newParts[newParts.length - 1];
-
+                const lastPart = prev[prev.length - 1];
                 if (lastPart && lastPart.type === "text") {
-                  // Update existing text part
-                  lastPart.content = currentTextPartRef.current;
-                } else {
-                  // Create new text part
-                  newParts.push({
-                    type: "text",
-                    content: currentTextPartRef.current,
-                  });
+                  return [
+                    ...prev.slice(0, -1),
+                    { ...lastPart, content: currentTextPartRef.current },
+                  ];
                 }
-
-                return newParts;
+                return [...prev, { type: "text", content: currentTextPartRef.current }];
               });
               break;
 
@@ -119,6 +115,10 @@ export function useStreamingMessage({
                   toolArgs: part.args as Record<string, unknown>,
                 },
               ]);
+              break;
+
+            case "state":
+              setCurrentAgent(part.agent);
               break;
 
             case "tool-result":
@@ -178,7 +178,15 @@ export function useStreamingMessage({
               break;
 
             case "finish":
+              // Always use finalMessage as fallback if no text parts were accumulated
+              if (part.finalMessage) {
+                setParts((prev) => {
+                  const hasText = prev.some((p) => p.type === "text" && p.content);
+                  return hasText ? prev : [...prev, { type: "text", content: part.finalMessage! }];
+                });
+              }
               setIsStreaming(false);
+              setCurrentAgent(null);
               onComplete?.(parts);
               return;
           }
@@ -223,6 +231,7 @@ export function useStreamingMessage({
   return {
     parts,
     isStreaming,
+    currentAgent,
     error,
     startStream,
     cancelStream,
