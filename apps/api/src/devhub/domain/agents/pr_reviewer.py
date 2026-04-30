@@ -152,6 +152,29 @@ def _apply_reflection(review: PRReview, reflection_content: str) -> PRReview:
     return review
 
 
+# ── Formatting ───────────────────────────────────────────────────────────────
+
+
+def _format_review_markdown(review: PRReview, owner: str, repo: str, pr_number: str) -> str:
+    lines: list[str] = []
+    lines.append(
+        f"## PR Review: [{owner}/{repo}#{pr_number}](https://github.com/{owner}/{repo}/pull/{pr_number})"
+    )
+    lines.append(f"\n{review.summary}")
+    if review.blocking:
+        lines.append("\n### 🚫 Blocking")
+        lines.extend(f"- {item}" for item in review.blocking)
+    if review.non_blocking:
+        lines.append("\n### 💡 Suggestions")
+        lines.extend(f"- {item}" for item in review.non_blocking)
+    if review.nits:
+        lines.append("\n### 🔍 Nits")
+        lines.extend(f"- {item}" for item in review.nits)
+    if not review.blocking and not review.non_blocking and not review.nits:
+        lines.append("\n✅ No issues found.")
+    return "\n".join(lines)
+
+
 # ── Node factory ──────────────────────────────────────────────────────────────
 
 
@@ -254,7 +277,7 @@ def make_pr_reviewer_node(
             artifacts: dict[str, Any] = dict(state.get("artifacts") or {})
             artifacts["pr_review"] = review.model_dump()
 
-            reply = AIMessage(content=review.model_dump_json(indent=2))
+            reply = AIMessage(content=_format_review_markdown(review, owner, repo, pr_number))
 
             hitl_request: HITLRequest | None = None
             if review.suggested_comment:

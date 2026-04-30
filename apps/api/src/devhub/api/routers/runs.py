@@ -97,7 +97,16 @@ async def _run_and_publish(
 
     from devhub.adapters.persistence.database import get_session_factory
     from devhub.adapters.persistence.repositories import RunRepository
-    from devhub.application.use_cases.run_events import DoneEvent, ErrorEvent, TokenEvent
+    from devhub.application.use_cases.run_events import (
+        DoneEvent,
+        ErrorEvent,
+        StateEvent,
+        TokenEvent,
+    )
+
+    _SPECIALIST_NODES = frozenset(
+        {"pr_reviewer", "issue_triager", "doc_writer", "code_searcher", "echo_specialist"}
+    )
 
     config = {"configurable": {"thread_id": str(thread_id)}}
     final_text = ""
@@ -113,15 +122,10 @@ async def _run_and_publish(
             ):
                 kind = event.get("event", "")
 
-                if kind == "on_chat_model_stream":
-                    # Skip supervisor routing tokens — they are internal JSON, not user-facing
+                if kind == "on_chain_start":
                     node = event.get("metadata", {}).get("langgraph_node", "")
-                    if node == "supervisor":
-                        continue
-                    chunk = event.get("data", {}).get("chunk")
-                    if chunk and hasattr(chunk, "content") and chunk.content:
-                        await event_store.publish(run_id, TokenEvent(text=str(chunk.content)))
-                        final_text += str(chunk.content)
+                    if node in _SPECIALIST_NODES:
+                        await event_store.publish(run_id, StateEvent(current_agent=node, plan=[]))
 
                 elif kind == "on_chain_end":
                     output = event.get("data", {}).get("output", {})
@@ -148,6 +152,10 @@ async def _run_and_publish(
             )
             await run_repo.mark_failed(run_id, {"code": "INTERNAL_ERROR", "message": str(exc)})
             return
+
+        # Publish the final formatted message so the frontend can display it.
+        if final_text:
+            await event_store.publish(run_id, TokenEvent(text=final_text))
 
         if error_seen:
             await run_repo.mark_failed(run_id, {"code": "AGENT_ERROR", "message": "Agent error"})

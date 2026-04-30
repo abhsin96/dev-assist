@@ -49,9 +49,14 @@ _VALID_SPECIALIST_ROUTES: frozenset[str] = frozenset(
 
 def _make_supervisor(llm: ILLMPort) -> Callable[[AgentState], Any]:
     async def supervisor(state: AgentState) -> Command[str]:
+        # If a specialist already responded (last message is AIMessage), end the loop.
+        messages = list(state["messages"])
+        if messages and isinstance(messages[-1], AIMessage):
+            return Command(goto=END, update={"current_agent": None})
+
         try:
             response = await llm.chat(
-                list(state["messages"]),
+                messages,
                 system=_SUPERVISOR_PROMPT,
             )
             content = response.content

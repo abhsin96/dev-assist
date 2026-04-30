@@ -14,6 +14,14 @@ import { useHITLApprovals } from "@/features/threads/hooks/use-hitl-approvals";
 import { useAutoScroll } from "@/hooks/use-auto-scroll";
 import { toast } from "sonner";
 
+const AGENT_LABELS: Record<string, string> = {
+  pr_reviewer: "Reviewing PR…",
+  issue_triager: "Triaging issue…",
+  doc_writer: "Writing documentation…",
+  code_searcher: "Searching codebase…",
+  echo_specialist: "Processing…",
+};
+
 interface Thread {
   id: string;
   title?: string;
@@ -30,6 +38,7 @@ export function ThreadDetail({ threadId, initialThread }: ThreadDetailProps) {
   const router = useRouter();
   const [inputValue, setInputValue] = useState("");
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
+  const [userMessage, setUserMessage] = useState<string | null>(null);
 
   // Use React Query for client-side data fetching and caching
   const {
@@ -49,6 +58,7 @@ export function ThreadDetail({ threadId, initialThread }: ThreadDetailProps) {
   const {
     parts,
     isStreaming,
+    currentAgent,
     error: streamError,
     startStream,
     cancelStream,
@@ -119,6 +129,9 @@ export function ThreadDetail({ threadId, initialThread }: ThreadDetailProps) {
 
       // Store the run ID for approval submissions
       setCurrentRunId(response.run_id);
+
+      // Show user message immediately
+      setUserMessage(inputValue.trim());
 
       // Clear input
       setInputValue("");
@@ -203,7 +216,7 @@ export function ThreadDetail({ threadId, initialThread }: ThreadDetailProps) {
         ref={containerRef}
         className="flex-1 overflow-y-auto px-6 py-4 relative"
       >
-        {parts.length === 0 ? (
+        {parts.length === 0 && !userMessage ? (
           <div className="flex h-full items-center justify-center">
             <div className="text-center max-w-md">
               <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800">
@@ -219,6 +232,31 @@ export function ThreadDetail({ threadId, initialThread }: ThreadDetailProps) {
           </div>
         ) : (
           <div className="space-y-4 max-w-4xl mx-auto">
+            {/* User message bubble */}
+            {userMessage && (
+              <div className="flex justify-end">
+                <div className="max-w-[80%] rounded-2xl rounded-tr-sm bg-zinc-900 dark:bg-zinc-100 px-4 py-2 text-sm text-white dark:text-zinc-900">
+                  {userMessage}
+                </div>
+              </div>
+            )}
+
+            {/* Progress indicator — shown while streaming and no response text yet */}
+            {isStreaming && parts.every((p) => p.type === "interrupt") && (
+              <div className="flex items-center gap-3 py-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-zinc-400 animate-bounce [animation-delay:-0.3s]" />
+                  <span className="h-2 w-2 rounded-full bg-zinc-400 animate-bounce [animation-delay:-0.15s]" />
+                  <span className="h-2 w-2 rounded-full bg-zinc-400 animate-bounce" />
+                </div>
+                <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                  {currentAgent
+                    ? AGENT_LABELS[currentAgent] ?? currentAgent
+                    : "Thinking…"}
+                </span>
+              </div>
+            )}
+
             {/* Render message parts */}
             {parts.map((part, index) => {
               // Skip interrupt parts as they are rendered separately
