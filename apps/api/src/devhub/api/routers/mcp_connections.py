@@ -11,6 +11,7 @@ from devhub.adapters.mcp.registry import MCPRegistry
 from devhub.adapters.persistence.database import get_db
 from devhub.adapters.persistence.repositories.mcp_server_repository import MCPServerRepository
 from devhub.core.logging import get_logger
+from devhub.core.settings import get_settings
 from devhub.domain.models import MCPServerConfig, MCPServerCreate, MCPServerInfo, MCPServerUpdate
 
 logger = get_logger(__name__)
@@ -222,11 +223,15 @@ async def reconnect_mcp_server(
 
     # Attempt to reconnect
     try:
+        extra_config = dict(existing.config or {})
+        if server_id == "github" and get_settings().github_token:
+            extra_config.setdefault("auth_token", get_settings().github_token)
         config = MCPServerConfig(
             server_id=server_id,
             url=existing.url,
             transport="streamable-http",
             enabled=existing.enabled,
+            config=extra_config or None,
         )
         await registry.connect(config)
         await repo.update_connection_status(server_id, connected=True)

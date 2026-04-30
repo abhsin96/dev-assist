@@ -172,7 +172,8 @@ export async function createSSETransport(
 ): Promise<AsyncIterable<StreamPart>> {
   const { url, runId, fromSeq = 0, signal, onError, onReconnect } = options;
 
-  const streamUrl = new URL(url);
+  const base = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+  const streamUrl = new URL(url, base);
   streamUrl.searchParams.set("run_id", runId);
   if (fromSeq > 0) {
     streamUrl.searchParams.set("from", fromSeq.toString());

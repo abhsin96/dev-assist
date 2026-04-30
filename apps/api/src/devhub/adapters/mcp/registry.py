@@ -39,7 +39,12 @@ class MCPRegistry:
 
         stack = AsyncExitStack()
         try:
-            read, write, _ = await stack.enter_async_context(streamablehttp_client(config.url))
+            headers: dict[str, str] | None = None
+            if config.config and config.config.get("auth_token"):
+                headers = {"Authorization": f"Bearer {config.config['auth_token']}"}
+            read, write, _ = await stack.enter_async_context(
+                streamablehttp_client(config.url, headers=headers)
+            )
             session = await stack.enter_async_context(ClientSession(read, write))
             await session.initialize()
         except Exception as exc:

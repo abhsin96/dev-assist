@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
     // Build backend URL
     const backendUrl = new URL(
-      `/api/runs/${runId}/stream`,
+      `/api/runs/${runId}/events`,
       process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
     );
     backendUrl.searchParams.set('from', fromSeq);

@@ -61,8 +61,8 @@ from fastapi import FastAPI  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from langgraph.checkpoint.memory import MemorySaver  # noqa: E402
 
-from devhub.adapters.llm.client import AnthropicLLMClient  # noqa: E402
 from devhub.adapters.streaming.event_store import EventStore  # noqa: E402
+from devhub.api.deps import get_llm_client  # noqa: E402
 from devhub.api.error_handlers import register_error_handlers  # noqa: E402
 from devhub.api.middleware import RequestIdMiddleware  # noqa: E402
 from devhub.api.routers.auth import router as auth_router  # noqa: E402
@@ -85,7 +85,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     from devhub.application.use_cases.expire_approvals import ExpireApprovalsTask
     from devhub.domain.models import MCPServerConfig
 
-    llm = AnthropicLLMClient(api_key=settings.anthropic_api_key)
+    llm = get_llm_client()
     app.state.graph = compile_supervisor_graph(llm, MemorySaver())
     app.state.event_store = EventStore()
 
@@ -100,11 +100,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         for server in servers:
             if server.enabled:
                 try:
+                    extra_config = dict(server.config or {})
+                    if server.server_id == "github" and settings.github_token:
+                        extra_config.setdefault("auth_token", settings.github_token)
                     config = MCPServerConfig(
                         server_id=server.server_id,
                         url=server.url,
                         transport="streamable-http",
                         enabled=True,
+                        config=extra_config or None,
                     )
                     await mcp_registry.connect(config)
                     await mcp_repo.update_connection_status(server.server_id, connected=True)

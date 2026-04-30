@@ -30,7 +30,7 @@ from devhub.core.settings import get_settings
 from devhub.domain.ports import (
     IAuditLogRepository,
     IHITLApprovalRepository,
-    ILLMClient,
+    ILLMPort,
     IMCPRegistry,
     IRunRepository,
     IThreadRepository,
@@ -103,7 +103,7 @@ def get_mcp_registry() -> IMCPRegistry:
     return MCPRegistry()
 
 
-def get_llm_client() -> ILLMClient:
+def get_llm_client() -> ILLMPort:
     settings = get_settings()
     provider = settings.llm_provider.lower()
 

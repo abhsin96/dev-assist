@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
 
     // Call backend API
     const backendUrl = new URL(
-      '/api/runs/start',
+      `/api/threads/${thread_id}/runs`,
       process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
     );
 
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
         'Authorization': `Bearer ${apiToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ thread_id, message }),
+      body: JSON.stringify({ message }),
     });
 
     if (!response.ok) {
